@@ -58,7 +58,7 @@ function results = fiber_levelset(config_name)
 % 载荷参数
     F_mag = params.load.F_mag;
 
-global DIAG;
+global DIAG; %#ok<GVMIS>
 DIAG = struct();
 diag_reset();
 
@@ -414,10 +414,14 @@ for iter = 1:max_iter
     lsf_before = lsf;
     lsf = update_levelset_HJ(lsf, velocity, dt_adaptive, dx, dy);
     
+    % 保存HJ演化后状态（用于重初始化判据，排除投影影响）
+    lsf_after_HJ = lsf;
+    
     % === 阶段3：水平集更新验证（检查NaN/Inf） ===
     if any(~isfinite(lsf(:)))
         log_message('ERROR', params, '水平集出现NaN/Inf（迭代 %d）', iter);
         lsf = lsf_before;  % 回退到更新前状态
+        lsf_after_HJ = lsf;  % 同步更新，避免传NaN到should_reinitialize
         log_message('WARN', params, '已回退到更新前状态');
     end
 
@@ -449,9 +453,14 @@ for iter = 1:max_iter
         end
     end
 
-    lsf_change = max(abs(lsf(:) - lsf_before(:)));
+    % 分别计算HJ演化量和投影修正量
+    lsf_change_HJ = max(abs(lsf_after_HJ(:) - lsf_before(:)));
+    lsf_change_total = max(abs(lsf(:) - lsf_before(:)));
+    lsf_change_proj = max(abs(lsf(:) - lsf_after_HJ(:)));
+    
     if mod(iter, 10) == 0
-        fprintf('  水平集变化: %.3e\n', lsf_change);
+        fprintf('  [水平集变化] HJ演化=%.3e, 投影修正=%.3e, 总计=%.3e\n', ...
+            lsf_change_HJ, lsf_change_proj, lsf_change_total);
     end
 
     % === 阶段2：自适应重初始化（智能判断） ===
@@ -461,13 +470,37 @@ for iter = 1:max_iter
     end
     
     iter_since_last_reinit = iter_since_last_reinit + 1;
-    [do_reinit, reinit_reason] = should_reinitialize(lsf, lsf_before, ...
+    
+    % === 重初始化判据说明（刻意设计） ===
+    % 分离两个判据的输入（2025-10-23 修复）：
+    %   1. 变化量判据：基于lsf_after_HJ（HJ演化后、投影前），排除投影修正的影响
+    %   2. 梯度偏差判据：基于lsf（投影后），使用最终状态的梯度质量
+    % 原因：
+    %   - HJ演化会导致符号距离性质退化，需要监控变化量
+    %   - 投影会修正水平集，需要基于投影后的最终状态评估梯度质量
+    %   - 避免投影修正触发"变化量过大"，但保留对梯度质量的正确评估
+    [do_reinit, reinit_reason] = should_reinitialize(lsf_after_HJ, lsf, lsf_before, ...
         iter_since_last_reinit, iter, params);
     
     if do_reinit
         log_message('INFO', params, '触发重初始化: %s', reinit_reason);
+        fprintf('  [触发时状态] HJ演化=%.3e, 投影修正=%.3e\n', ...
+            lsf_change_HJ, lsf_change_proj);
         zero_mask_dynamic = compute_zero_mask_from_lsf(lsf, h_grid);
-        lsf = fmm_reinitialize(lsf, dx, dy, zero_mask_dynamic, []);
+        
+        % === 重初始化域选择（刻意设计） ===
+        % 设计意图：
+        %   1. 速度场演化仅在材料边界环带更新零等值线（主纤维路径）
+        %   2. FMM重初始化需将距离信息传播到全域（包括void区域）
+        %   3. 全域传播确保FE分析所需的纤维角度场θ(x,y)连续无奇异
+        % 默认：不传material_mask（即全域），避免后续误改
+        % 可选：通过config.levelset.reinit_domain='masked'限制到材料域（仅供试验）
+        if strcmp(params.levelset.reinit_domain, 'masked')
+            reinit_mask = material_mask;
+        else
+            reinit_mask = [];  % 全域传播（默认）
+        end
+        lsf = fmm_reinitialize(lsf, dx, dy, zero_mask_dynamic, reinit_mask);
         iter_since_last_reinit = 0;  % 重置计数
     end
 
