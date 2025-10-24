@@ -86,4 +86,3 @@ function [should_reinit, reason] = should_reinitialize(lsf_for_change, lsf_for_g
         return;
     end
 end
-

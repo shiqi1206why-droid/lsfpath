@@ -407,6 +407,7 @@ for iter = 1:max_iter
         predicted_change = velocity_stats.max_band * dt_adaptive;
         fprintf('  预测最大角度变化 %.2f 度\n', predicted_change * 180/pi);
         fprintf('  自适应时间步长: %.6f\n', dt_adaptive);
+        
         diag_report(iter, node_sensitivity, velocity_stats);
     end
 
@@ -425,10 +426,14 @@ for iter = 1:max_iter
         log_message('WARN', params, '已回退到更新前状态');
     end
 
-    % === 强力稳住2：投影更硬（前期加强）===
-    % 参考：强力稳住-总结清单.txt 一-2)
-    % 前100步强力拉回，后期温和约束
-    ENABLE_HARD_PROJECTION = true;
+
+    grad_stats_hj = [];
+   
+    % === 硬投影控制（学习拓扑优化方法）===
+    % 拓扑优化代码采用纯速度项驱动，无硬投影，通过高频重初始化维护|∇φ|≈1
+    % 当前策略：关闭硬投影，依赖v_fid速度项 + 高频重初始化（每2-5步）
+    % 参考：levelset_top.m，重初始化频率=2，无硬投影
+    ENABLE_HARD_PROJECTION = false;
     
     if iter <= 100
         omega_proj = 0.7;  % 前100步：更强投影（从0.5提升）
@@ -452,6 +457,9 @@ for iter = 1:max_iter
                 omega_proj, max_correction, phase_str);
         end
     end
+
+    grad_stats_proj = [];
+    
 
     % 分别计算HJ演化量和投影修正量
     lsf_change_HJ = max(abs(lsf_after_HJ(:) - lsf_before(:)));
@@ -501,6 +509,7 @@ for iter = 1:max_iter
             reinit_mask = [];  % 全域传播（默认）
         end
         lsf = fmm_reinitialize(lsf, dx, dy, zero_mask_dynamic, reinit_mask);
+       
         iter_since_last_reinit = 0;  % 重置计数
     end
 
@@ -607,5 +616,4 @@ else
 end
 
 log_message('INFO', params, '结果已保存至输出结构体');
-
 end
