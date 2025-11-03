@@ -1,0 +1,2 @@
+[Δt] = Δθ_max / max_e |∂E/∂θ_e|
+\Delta t = \dfrac{\Delta \theta_{\max}}{\max_e \left| \frac{\partial E}{\partial \theta_e} \right|}

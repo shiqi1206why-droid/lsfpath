@@ -27,6 +27,22 @@ function results = fiber_levelset(config_name)
     params = get_fiber_optimization_params(config_name);
     validate_params(params);
     
+    % ========================================================================
+    % 高级功能总控开关（2025-10-31）
+    % ========================================================================
+    % 控制以下6个速度场处理功能：
+    %   1. 去均值（偏置去除）- v_shape梯度权重去均值
+    %   2. 幅值缩放 - P99分位与v_target动态缩放
+    %   3. 运动域收缩 - target_ring收紧窄带
+    %   4. v_fid距离约束项 - 拉回路径到目标等距层
+    %   5. v_curv曲率正则项 - 平滑零水平集
+    %   6. 净平移抑制 - beta加权平均去偏
+    %
+    % 默认：true（保持现有行为）
+    % 关闭后：仅使用基础v_shape，无额外处理
+    ENABLE_ADVANCED_FEATURES = true;
+    % ========================================================================
+    
     % 解包常用参数（简化代码）
     nelx = params.grid.nelx;
     nely = params.grid.nely;
@@ -303,20 +319,22 @@ for iter = 1:max_iter
     fprintf('迭代 %d - 灵敏度统计：最大=%e，最小=%e，平均=%e\n', iter, ...
         max(sensitivity(:)), min(sensitivity(:)), mean(abs(sensitivity(:))));
 
-    node_sensitivity = aggregate_node_sensitivity(sensitivity, theta_e, lsf, nelx, nely, dx, dy);
+    node_sensitivity = aggregate_node_sensitivity(sensitivity, theta_e, lsf, nelx, nely, dx, dy, bands.narrow_10h);
     
-    % === 修改20-A2：改进lambda_fid计算（基于dev95） ===
-    % 参考：解决方案-分点总结.txt A2
-    % dev95比均值更抗噪，基于v_shape_target计算更合理
+    % === 修改20-A2：改进lambda_fid计算（基于实时Vshape95自适应） ===
+    % 修复：将固定v_shape_target改为实时测量的Vshape95，确保约束力足够
+    % 参考：优化偏离原因分析.md
     band_est = bands.narrow_10h;  % 优化1.3：使用预计算掩码
     vshape_est = -node_sensitivity;
     if any(band_est(:))
         dev = abs(lsf(band_est) - lsf_target_global(band_est));
         dev95 = prctile(dev, 95);  % 改用95%分位，更抗噪
-        v_shape_target = 3.0;  % 前期目标幅值（可改为动态）
+        Vshape95 = prctile(abs(vshape_est(band_est)), 95);  % 实时测量形状灵敏度强度
         factor = 2.5;  % 目标：Vfid95 >= 2.5*Vshape95
-        lambda_fid = factor * v_shape_target / max(dev95, 1e-12);
-        lambda_fid = min(lambda_fid, 5000);  % 上限放宽到5000
+        lambda_fid = factor * Vshape95 / max(dev95, 1e-12);
+        lambda_min = 50.0;   % 下限：避免过小
+        lambda_max = 5000.0; % 上限：避免过大
+        lambda_fid = max(min(lambda_fid, lambda_max), lambda_min);  % 限幅
     else
         lambda_fid = 50.0;  % 回退固定值
     end
@@ -325,7 +343,7 @@ for iter = 1:max_iter
     % === 强力稳住4：动态v_target（前期慢稳）===
     % build_velocity_field函数内部根据iter动态调整v_target
     % 前100步v_target=3，后期v_target=5
-    [velocity, velocity_stats] = build_velocity_field(node_sensitivity, lsf, dx, dy, 1.5*h_grid, true, lsf_target_global, lambda_fid, material_mask, gamma_curv, iter);
+    [velocity, velocity_stats] = build_velocity_field(node_sensitivity, lsf, dx, dy, 1.5*h_grid, true, lsf_target_global, lambda_fid, material_mask, gamma_curv, iter, ENABLE_ADVANCED_FEATURES);
     
     % 诊断：检查梯度模和偏离量
     if iter == 1 || mod(iter, 10) == 0
@@ -383,16 +401,14 @@ for iter = 1:max_iter
         end
     end
 
-    dt_adaptive = compute_adaptive_timestep(velocity, dx, dy);
-    if velocity_stats.max_band > 1e-12
-        dt_angle = delta_theta_max / velocity_stats.max_band;
-        dt_adaptive = min(dt_adaptive, dt_angle);
-    end
+    % === 时间步长计算（修改时间：2025-10-30）===
+    % 采用论文公式 Δt = Δθ_max / max|∂E/∂φ|，并保留CFL保护
+    dt_cfl = compute_adaptive_timestep(velocity, dx, dy);  % CFL保护
     max_node_sens = max(abs(node_sensitivity(:)));
-    if max_node_sens > 1e-12
-        dt_angle_sens = delta_theta_max / max_node_sens;
-        dt_adaptive = min(dt_adaptive, dt_angle_sens);
-    end
+    dt_formula = delta_theta_max / max(max_node_sens, 1e-12);  % 论文公式
+    
+    % 三重保护：CFL + 公式 + 上限
+    dt_adaptive = min([dt_cfl, dt_formula, params.opt.dt]);        
 
     if iter == 1 || mod(iter, 10) == 0
         fprintf('  节点灵敏度统计：最大=%.3e，最小=%.3e，平均=%.3e\n', ...
@@ -444,7 +460,7 @@ for iter = 1:max_iter
     end
     
     if ENABLE_HARD_PROJECTION
-        deviation_proj = lsf(proj_band) - lsf_target_global(proj_band);
+        deviation_proj = lsf(proj_band) - lsf_target_global(proj_band); %#ok<*UNRCH>
         lsf(proj_band) = lsf(proj_band) - omega_proj * deviation_proj;
         
         if iter == 1 || mod(iter, 10) == 0

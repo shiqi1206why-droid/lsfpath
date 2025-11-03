@@ -29,9 +29,11 @@ function sensitivity = compute_sensitivity_adjoint(nelx, nely, U, theta_e, E_L, 
         end
     end
 
-    max_sensitivity = max(abs(sensitivity(:)));
-    if max_sensitivity > 1e-10
-        sensitivity = sensitivity / max_sensitivity;
-    end
+    % 保留真实灵敏度量级，供时间步长公式使用（修改时间：2025-10-30）
+    % 原归一化逻辑已注释，以符合 Δt = Δθ_max / max|∂E/∂φ| 公式要求
+    % max_sensitivity = max(abs(sensitivity(:)));
+    % if max_sensitivity > 1e-10
+    %     sensitivity = sensitivity / max_sensitivity;
+    % end
 end
 

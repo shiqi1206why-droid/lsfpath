@@ -1,8 +1,9 @@
-function [velocity_field, stats] = build_velocity_field(node_sensitivity, lsf, dx, dy, bandwidth, remove_bias, lsf_target, lambda_fid, material_mask, gamma_curv, iter)
+function [velocity_field, stats] = build_velocity_field(node_sensitivity, lsf, dx, dy, bandwidth, remove_bias, lsf_target, lambda_fid, material_mask, gamma_curv, iter, enable_advanced)
     % 构造用于水平集演化的窄带法向速度场
     % 参数：lsf_target为边界等距目标场，lambda_fid为等距约束权重
     %       material_mask用于边界邻域限制，gamma_curv为曲率正则化系数
     %       iter为当前迭代次数（用于动态调整v_target等参数）
+    %       enable_advanced为高级功能总控开关（去均值/缩放/约束等）
 
     if nargin < 5 || isempty(bandwidth)
         bandwidth = 2 * min(dx, dy);
@@ -24,6 +25,9 @@ function [velocity_field, stats] = build_velocity_field(node_sensitivity, lsf, d
     end
     if nargin < 11 || isempty(iter)
         iter = 1;  % 默认迭代1
+    end
+    if nargin < 12 || isempty(enable_advanced)
+        enable_advanced = true;  % 默认启用所有高级功能
     end
 
     [ny_lsf, nx_lsf] = size(lsf);
@@ -50,7 +54,7 @@ function [velocity_field, stats] = build_velocity_field(node_sensitivity, lsf, d
     % 步骤1：v_shape去均值（仅对形状项）
     v_shape = -node_sensitivity;
     
-    if remove_bias
+    if enable_advanced && remove_bias
         band_mask_temp = abs(lsf) <= bandwidth;
         if any(band_mask_temp(:))
             [grad_y, grad_x] = gradient(lsf, dy, dx);
@@ -90,7 +94,7 @@ function [velocity_field, stats] = build_velocity_field(node_sensitivity, lsf, d
     % === 强力稳住3：运动域再收紧（环带+目标护栏）===
     % 参考：强力稳住-总结清单.txt 一-3)
     % 双重限制：材料环带 + 目标护栏
-    if ~isempty(material_mask)
+    if enable_advanced && ~isempty(material_mask)
         % 提取材料边界外周
         boundary_perim = bwperim(material_mask);
         
@@ -127,29 +131,31 @@ function [velocity_field, stats] = build_velocity_field(node_sensitivity, lsf, d
     % === 幅值缩放（Bug 4修复：仅缩放v_shape，不缩放约束项） ===
     % 在加入v_fid之前进行缩放，确保约束力不被削弱
     % 注意：此时velocity_field = v_shape（去均值后）
-    weight_field_scale = grad_magnitude;
-    weight_field_scale(~band_mask) = 0;
-    weight_values_scale = weight_field_scale(band_mask);
-    band_values = velocity_field(band_mask);
-    
-    v_abs = abs(band_values);
-    if ~isempty(v_abs)
-        v_sorted = sort(v_abs(:));
-        k = max(1, round(0.99 * numel(v_sorted)));
-        v_robust = v_sorted(k);
-        if isfinite(v_robust) && v_robust > 0
-            % === 强力稳住4：步幅更小（前期慢稳）===
-            % 参考：强力稳住-总结清单.txt 一-4)
-            % 前100步极慢，后期正常
-            if iter <= 100
-                v_target = 3;  % 前100步：极慢步幅
-            else
-                v_target = 5;  % 后期：正常步幅
-            end
-            scale = min(1, v_target / v_robust);
-            if scale < 1
-                velocity_field(band_mask) = band_values * scale;
-                band_values = band_values * scale;
+    if enable_advanced
+        weight_field_scale = grad_magnitude;
+        weight_field_scale(~band_mask) = 0;
+        weight_values_scale = weight_field_scale(band_mask);
+        band_values = velocity_field(band_mask);
+        
+        v_abs = abs(band_values);
+        if ~isempty(v_abs)
+            v_sorted = sort(v_abs(:));
+            k = max(1, round(0.99 * numel(v_sorted)));
+            v_robust = v_sorted(k);
+            if isfinite(v_robust) && v_robust > 0
+                % === 强力稳住4：步幅更小（前期慢稳）===
+                % 参考：强力稳住-总结清单.txt 一-4)
+                % 前100步极慢，后期正常
+                if iter <= 100
+                    v_target = 3;  % 前100步：极慢步幅
+                else
+                    v_target = 5;  % 后期：正常步幅
+                end
+                scale = min(1, v_target / v_robust);
+                if scale < 1
+                    velocity_field(band_mask) = band_values * scale;
+                    band_values = band_values * scale;
+                end
             end
         end
     end
@@ -157,7 +163,7 @@ function [velocity_field, stats] = build_velocity_field(node_sensitivity, lsf, d
     % === 强力稳住5：去掉v_fid限幅 ===
     % 参考：强力稳住-总结清单.txt 一-5)
     % V_fid = -λ_fid · (φ - φ_target)，将路径拉回到边界等距位置
-    if lambda_fid > 0
+    if enable_advanced && lambda_fid > 0
         deviation = lsf - lsf_target;  % 偏离量
         % 大幅放宽限幅：让约束项充分发挥作用
         h = min(dx, dy);
@@ -170,7 +176,7 @@ function [velocity_field, stats] = build_velocity_field(node_sensitivity, lsf, d
 
     % === 曲率正则化（纤维路径-修改思路.txt 三-5)、三-6)） ===
     % 平滑路径，抑制锯齿状震荡和局部尖角
-    if gamma_curv > 0
+    if enable_advanced && gamma_curv > 0
         % 计算归一化梯度
         grad_mag_curv = hypot(grad_x, grad_y);
         grad_mag_curv = max(grad_mag_curv, 1e-12);  % 防止除零
@@ -201,17 +207,21 @@ function [velocity_field, stats] = build_velocity_field(node_sensitivity, lsf, d
     % === 修改20-A3：暂停净平移抑制（让v_fid充分发挥） ===
     % 参考：解决方案-分点总结.txt A3
     % beta=0.2可能削弱了v_fid锚定效果，暂停去偏（稳定后可恢复0.1）
-    beta = 0.0;  % 暂停去偏
-    if any(band_mask(:))
-        weight_field_final = grad_magnitude;
-        weight_field_final(~band_mask) = 0;
-        weight_values_final = weight_field_final(band_mask);
-        velocity_band_final = velocity_field(band_mask);
-        
-        if sum(weight_values_final) > 0
-            mu_total = sum(velocity_band_final .* weight_values_final) / sum(weight_values_final);
-            velocity_field(band_mask) = velocity_band_final - beta * mu_total;
+    if enable_advanced
+        beta = 0.0;  % 暂停去偏
+        if any(band_mask(:))
+            weight_field_final = grad_magnitude;
+            weight_field_final(~band_mask) = 0;
+            weight_values_final = weight_field_final(band_mask);
+            velocity_band_final = velocity_field(band_mask);
+            
+            if sum(weight_values_final) > 0
+                mu_total = sum(velocity_band_final .* weight_values_final) / sum(weight_values_final);
+                velocity_field(band_mask) = velocity_band_final - beta * mu_total;
+            end
         end
+    else
+        beta = 0.0;  % 禁用时也不抑制平移
     end
     
     % === 更新band_values（用于统计） ===

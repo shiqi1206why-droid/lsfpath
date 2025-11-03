@@ -13,13 +13,25 @@ function lsf_new = update_levelset_HJ(lsf, velocity, dt, dx, dy)
             dmy = (lsf_old(i, j) - lsf_old(i-1, j)) / dy;
 
             if velocity(i, j) > 0
-                grad_plus = sqrt(max(dmx, 0)^2 + min(dpx, 0)^2 + ...
-                    max(dmy, 0)^2 + min(dpy, 0)^2);
-                lsf_new(i, j) = lsf_old(i, j) - dt * velocity(i, j) * grad_plus;
+                % 正速度：使用标准Godunov迎风格式（取最大值而非累加）
+                % X方向：dmx为plus，dpx为minus；Y方向：dmy为plus，dpy为minus
+                a_plus  = max(dmx, 0);
+                a_minus = min(dpx, 0);
+                b_plus  = max(dmy, 0);
+                b_minus = min(dpy, 0);
+                grad = sqrt( max(a_plus^2, (-a_minus)^2) + ...
+                             max(b_plus^2, (-b_minus)^2) );
+                lsf_new(i, j) = lsf_old(i, j) - dt * velocity(i, j) * grad;
             else
-                grad_minus = sqrt(min(dmx, 0)^2 + max(dpx, 0)^2 + ...
-                    min(dmy, 0)^2 + max(dpy, 0)^2);
-                lsf_new(i, j) = lsf_old(i, j) - dt * velocity(i, j) * grad_minus;
+                % 负速度：使用标准Godunov迎风格式（取最大值而非累加）
+                % X方向：dpx为plus，dmx为minus；Y方向：dpy为plus，dmy为minus
+                a_plus  = max(dpx, 0);
+                a_minus = min(dmx, 0);
+                b_plus  = max(dpy, 0);
+                b_minus = min(dmy, 0);
+                grad = sqrt( max(a_plus^2, (-a_minus)^2) + ...
+                             max(b_plus^2, (-b_minus)^2) );
+                lsf_new(i, j) = lsf_old(i, j) - dt * velocity(i, j) * grad;
             end
         end
     end

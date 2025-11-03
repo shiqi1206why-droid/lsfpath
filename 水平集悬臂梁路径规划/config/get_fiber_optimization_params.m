@@ -30,11 +30,11 @@ function params = get_fiber_optimization_params(config_name)
     base.material = get_material_params('carbon_fiber');
     
     % 优化控制
-    base.opt.max_iter = 100;
+    base.opt.max_iter = 300;
     base.opt.tol = 1e-5;
     base.opt.alpha = 0.5;
     base.opt.dt = 0.05;
-    base.opt.delta_theta_max_deg = 5;
+    base.opt.delta_theta_max_deg = 2;
     base.opt.fidelity_weight = 0.05;
     
     % 水平集参数（消除魔法数字）
