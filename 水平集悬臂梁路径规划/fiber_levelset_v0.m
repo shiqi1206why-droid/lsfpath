@@ -1,82 +1,48 @@
-function results = fiber_levelset(config_name)
-    % 纤维路径优化主函数（阶段2+3优化版）
-    % 
-    % 输入：
-    %   config_name - 配置名称（可选，默认'default'）
-    %                支持: 'default', 'fast', 'precise', 'debug'
-    % 
-    % 输出：
-    %   results - 优化结构体
-    
-    % 处理输入参数
-    if nargin < 1
-        config_name = 'default';
-    end
-    
-    % 清理（保留输入参数）
-    clc; close all;
-    clearvars -except config_name;
-    
-    % 自动添加所有辅助函数子文件夹到路径
-    script_dir = fileparts(mfilename('fullpath'));
-    addpath(genpath(script_dir));
-    cleanup = onCleanup(@() rmpath(genpath(script_dir)));
-    
-    %% 1. 加载和验证参数配置
-    fprintf('=== 纤维路径优化（配置: %s） ===\n', config_name);
-    params = get_fiber_optimization_params(config_name);
-    validate_params(params);
-    
-    % ========================================================================
-    % 高级功能总控开关（2025-10-31）
-    % ========================================================================
-    % 控制以下6个速度场处理功能：
-    %   1. 去均值（偏置去除）- v_shape梯度权重去均值
-    %   2. 幅值缩放 - P99分位与v_target动态缩放
-    %   3. 运动域收缩 - target_ring收紧窄带
-    %   4. v_fid距离约束项 - 拉回路径到目标等距层
-    %   5. v_curv曲率正则项 - 平滑零水平集
-    %   6. 净平移抑制 - beta加权平均去偏
-    %
-    % 临时关闭高级功能（2025-10-31，链式求和稳定性改造期间）
-    % 参考：链式求和_问题与修改方案.txt 第四点
-    % 默认：true（保持现有行为）
-    % 关闭后：仅使用基础v_shape，无额外处理
-    ENABLE_ADVANCED_FEATURES = false;
-    % ========================================================================
-    
-    % 解包常用参数（简化代码）
-    nelx = params.grid.nelx;
-    nely = params.grid.nely;
-    Lx = params.grid.Lx;
-    Ly = params.grid.Ly;
-    dx = params.grid.dx;
-    dy = params.grid.dy;
-    
-    E_L = params.material.E_L;
-    E_T = params.material.E_T;
-    nu_LT = params.material.nu_LT;
-    nu_TL = params.material.nu_TL;
-    G_LT = params.material.G_LT;
-    G_LW = params.material.G_LW;
-    G_TW = params.material.G_TW;
-    thickness = params.material.thickness;
-    
-    max_iter = params.opt.max_iter;
-    tol = params.opt.tol;
-    alpha = params.opt.alpha;
-    dt = params.opt.dt;
-    delta_theta_max = params.opt.delta_theta_max;
-    fidelity_weight = params.opt.fidelity_weight;
+function fiber_levelset()
+clc; close all; clear;
+
+% 自动添加所有辅助函数子文件夹到路径
+script_dir = fileparts(mfilename('fullpath'));
+addpath(genpath(script_dir));
+cleanup = onCleanup(@() rmpath(genpath(script_dir)));
+
+%% 1. 问题定义与参数设置
+% 结构尺寸
+nelx = 80;          % x方向单元数
+nely = 50;          % y方向单元数
+Lx = 1.6;           % 结构长度 (m)
+Ly = 1.0;           % 结构高度 (m)
+dx = Lx/nelx;       % x方向单元尺寸
+dy = Ly/nely;       % y方向单元尺寸
+
+% 材料参数（正交各向异性复合材料）
+E_L = 137.9e9;      % 纵向杨氏模量 (Pa)
+E_T = 10.34e9;      % 横向杨氏模量 (Pa)
+nu_LT = 0.29;       % 纵向泊松比
+nu_TL = nu_LT * E_T / E_L;
+G_LT = 6.89e9;      % 面内剪切模量 (Pa)
+G_LW = 6.89e9;      % 面外剪切模量 (Pa)
+G_TW = 3.7e9;       % 横向剪切模量 (Pa)
+thickness = 0.001;  % 板厚 (m)
+
+% 优化参数
+max_iter = 100;
+tol = 1e-5;
+alpha = 0.5;
+dt = 0.05;
+delta_theta_max = 5 * pi/180;
+numReinit = 5;  % 增加重初始化频率，保持梯度模接近1
+fidelity_weight = 0.05;
 
 % 初始化参数
-    delta_phi = params.levelset.delta_phi_factor * params.grid.h;
-    init_smooth_opts = struct('morph_radius', params.init.morph_radius);
+% 主纤维路径相对边界的目标内偏移距离（需小于局部壁厚）
+delta_phi = 0.8 * min(dx, dy);
+init_smooth_opts = struct('morph_radius', 1);
 
 % 载荷参数
-    F_mag = params.load.F_mag;
+F_mag = -1;       % 载荷大小 (N)
 
-global DIAG; %#ok<GVMIS>
+global DIAG;
 DIAG = struct();
 diag_reset();
 
@@ -86,7 +52,7 @@ if ~exist(topo_file, 'file')
     error('未找到拓扑优化结果文件: %s', topo_file);
 end
 
-log_message('INFO', params, '正在加载拓扑优化结果...');
+fprintf('正在加载拓扑优化结果...\n');
 topo_data = load(topo_file);
 
 if ~isfield(topo_data, 'struc')
@@ -94,19 +60,19 @@ if ~isfield(topo_data, 'struc')
 end
 
 struc = topo_data.struc;
-log_message('INFO', params, '拓扑网格尺寸: %dx%d', size(struc, 2), size(struc, 1));
+fprintf('拓扑网格尺寸: %dx%d\n', size(struc, 2), size(struc, 1));
 
 if isfield(topo_data, 'nelx') && isfield(topo_data, 'nely')
     if topo_data.nelx ~= nelx || topo_data.nely ~= nely
-        log_message('WARN', params, '网格尺寸不一致：拓扑(%dx%d) vs 当前(%dx%d)，正在重新采样...', ...
+        warning('网格尺寸不一致：拓扑(%dx%d) vs 当前(%dx%d)，正在重新采样...', ...
             topo_data.nelx, topo_data.nely, nelx, nely);
         struc = imresize(struc, [nely, nelx], 'nearest');
-        log_message('INFO', params, '重采样后拓扑网格尺寸: %dx%d', size(struc, 2), size(struc, 1));
+        fprintf('重采样后拓扑网格尺寸: %dx%d\n', size(struc, 2), size(struc, 1));
     end
 end
 
 % 初始化与诊断
-log_message('INFO', params, '开始执行边界偏移初始化...');
+fprintf('开始执行边界偏移初始化...\n');
 figure('Name', '拓扑与初始化检查', 'Position', [100, 100, 1200, 400]);
 
 subplot(1,3,1);
@@ -116,8 +82,8 @@ axis equal; axis tight;
 title('原始拓扑');
 xlabel('x方向单元索引');
 ylabel('y方向单元索引');
-log_message('INFO', params, '正在清理材料掩膜...');
-[material_mask, mask_info] = clean_material_mask(struc, params.init.min_component_size, init_smooth_opts.morph_radius);
+fprintf('正在清理材料掩膜...\n');
+[material_mask, mask_info] = clean_material_mask(struc, 10, init_smooth_opts.morph_radius);
 
 subplot(1,3,2);
 imagesc(material_mask);
@@ -133,9 +99,9 @@ plot(boundary_x, boundary_y, 'r.', 'MarkerSize', 2, 'DisplayName', '材料边界
 if ~isempty(boundary_x)
     legend('材料边界', 'Location', 'best');
 end
-log_message('DEBUG', params, '  连通区域数: %d，总像素数: %d', mask_info.num_components, mask_info.total_area);
+fprintf('  连通区域数: %d，总像素数: %d\n', mask_info.num_components, mask_info.total_area);
 
-log_message('INFO', params, '正在构建基于边界偏移的符号距离场...');
+fprintf('正在构建基于边界偏移的符号距离场...\n');
 [lsf, parallel_paths, init_info] = construct_boundary_offset_levelset_with_parallel( ...
     material_mask, nelx, nely, dx, dy, delta_phi, init_smooth_opts);
 
@@ -144,12 +110,9 @@ lsf_initial = lsf;
 
 % === 保存边界等距目标场（用于速度场约束） ===
 % 参考：论文关键要点.md 第4节、代码修改交流.md 2025-10-17方案
-log_message('INFO', params, '正在构建边界等距目标场...');
+fprintf('正在构建边界等距目标场...\n');
 phi_boundary_global = zeros(nely+2, nelx+2);
-
-% === 优化1.3：预计算网格特征尺寸（全局使用，消除重复计算） ===
-h_grid = min(dx, dy);  % 只计算一次，后续全部使用h_grid
-h = h_grid;  % 保持向后兼容
+h = min(dx, dy);
 d_in = bwdist(~material_mask) * h;
 d_out = bwdist(material_mask) * h;
 phi_boundary_core = d_out - d_in;
@@ -161,7 +124,7 @@ phi_boundary_global(:, 1) = phi_boundary_global(:, 2);
 phi_boundary_global(:, end) = phi_boundary_global(:, end-1);
 % 目标场：φ_target = φ_b + Δφ_used（与初始化严格一致）
 lsf_target_global = phi_boundary_global + init_info.delta_phi_used;
-log_message('INFO', params, '  边界等距目标场已构建（用于优化约束，Δφ_used=%.4f）', init_info.delta_phi_used);
+fprintf('  边界等距目标场已构建（用于优化约束，Δφ_used=%.4f）\n', init_info.delta_phi_used);
 
 % === 调试信息：检查init_info.contour内容 ===
 if isfield(init_info, 'contour') && ~isempty(init_info.contour.x)
@@ -211,21 +174,12 @@ end
 % fprintf('边界偏移初始化完成，按任意键继续...\n');
 % pause;
 enhanced_visualization_check(lsf, material_mask, parallel_paths, struc, nelx, nely, Lx, Ly, dx, dy, delta_phi, init_info);
-% === 优化1.2：历史数组预分配（消除动态扩容） ===
-% 预分配固定大小数组，循环结束后裁剪到实际长度
-compliance_history = zeros(max_iter, 1);
-FCS_history = zeros(max_iter, 1);
+% 历史数据记录
+compliance_history = [];
+FCS_history = [];
 
 theta_old = zeros(nely, nelx);
 for iter = 1:max_iter
-    % === 优化1.3：预计算常用掩码（每次迭代开始） ===
-    abs_lsf = abs(lsf);  % 只计算一次
-    
-    % 统一管理所有频繁使用的掩码
-    bands = struct();
-    bands.narrow_05h = abs_lsf <= 0.5 * h_grid;  % 零线附近
-    bands.narrow_10h = abs_lsf <= 1.0 * h_grid;  % 标准窄带
-    bands.narrow_15h = abs_lsf <= 1.5 * h_grid;  % 宽窄带
     % 3.1 根据水平集计算纤维角度
     theta_new = compute_fiber_angles_from_lsf(lsf, dx, dy);
 
@@ -249,11 +203,27 @@ for iter = 1:max_iter
         theta_old = zeros(nely, nelx);
     end
     
-    % === 优化1.1：矢量化角度平滑（替代三重嵌套循环，加速80%） ===
-    % 参考：解决方案-分点总结.txt B1 + 优化方案阶段1.1
+    % === 修改20-B1：二倍角向量平滑（专门提升FCS） ===
+    % 参考：解决方案-分点总结.txt B1
+    % 将角度转为二倍角复向量，用拉普拉斯平滑，避免0/π环绕
+    z = cos(2*theta_e) + 1i*sin(2*theta_e);
     eta = 0.10;  % 平滑系数 0.05~0.15
-    z = angle_smooth_vectorized(theta_e, eta, 2);
-    
+    for k = 1:2
+        % 五点拉普拉斯平滑
+        z_smooth = zeros(size(z));
+        for i = 2:nely-1
+            for j = 2:nelx-1
+                z_smooth(i,j) = z(i,j) + eta * (z(i-1,j) + z(i+1,j) + z(i,j-1) + z(i,j+1) - 4*z(i,j));
+            end
+        end
+        % 边界外推
+        z_smooth(1,:) = z_smooth(2,:);
+        z_smooth(end,:) = z_smooth(end-1,:);
+        z_smooth(:,1) = z_smooth(:,2);
+        z_smooth(:,end) = z_smooth(:,end-1);
+        % 归一化
+        z = z_smooth ./ max(abs(z_smooth), 1e-12);
+    end
     % 回到角度
     theta_smooth = 0.5 * angle(z);
     theta_smooth = mod(theta_smooth, pi);  % 归到[0,π)
@@ -261,28 +231,11 @@ for iter = 1:max_iter
     theta_e = theta_smooth;
 
     % 3.2 悬臂梁有限元分析（返回统一的载荷向量F）
-    % === 阶段3：异常处理 ===
-    try
     [U, K, F] = FE_analysis_cantilever(nelx, nely, theta_e, E_L, E_T, nu_LT, G_LT, thickness, F_mag, dx, dy);
-    catch ME
-        log_message('ERROR', params, '有限元分析失败（迭代 %d）: %s', iter, ME.message);
-        
-        % 保存错误状态（如启用检查点）
-        if params.debug.save_checkpoints
-            error_file = sprintf('checkpoints/error_state_iter_%04d.mat', iter);
-            if ~exist('checkpoints', 'dir')
-                mkdir('checkpoints');
-            end
-            save(error_file, 'lsf', 'theta_e', 'iter', 'ME');
-            log_message('INFO', params, '错误状态已保存: %s', error_file);
-        end
-        
-        rethrow(ME);
-    end
 
     % 3.3 计算柔度（统一使用FE返回的F，确保C = U'*F = U'*K*U > 0）
     compliance = full(U' * F);
-    compliance_history(iter) = compliance;  % 优化1.2：直接索引赋值
+    compliance_history(end+1) = compliance;
 
     % === 能量一致性自检（方案A）===
     % 验证 U'*F = U'*K*U（能量原理）
@@ -321,42 +274,30 @@ for iter = 1:max_iter
     fprintf('迭代 %d - 灵敏度统计：最大=%e，最小=%e，平均=%e\n', iter, ...
         max(sensitivity(:)), min(sensitivity(:)), mean(abs(sensitivity(:))));
 
-    % === 节点灵敏度聚合（严格模式，使用节点网格） ===
-    % 提取节点水平集值（去掉最外层ghost cell）
-    lsf_nodes = lsf(1:nely+1, 1:nelx+1);
-    % 构造节点窄带掩膜
-    band_mask_nodes = abs(lsf_nodes) <= h_grid;
-    % 调用严格版本的聚合函数（返回 (nely+1) x (nelx+1) 尺寸）
-    node_sens_core = aggregate_node_sensitivity(sensitivity, lsf_nodes, nelx, nely, dx, dy, band_mask_nodes);
+    node_sensitivity = aggregate_node_sensitivity(sensitivity, theta_e, lsf, nelx, nely, dx, dy);
     
-    % 扩展回 (nely+2) x (nelx+2) 以匹配 lsf 的 ghost cell 结构
-    node_sensitivity = zeros(size(lsf));
-    node_sensitivity(1:nely+1, 1:nelx+1) = node_sens_core;
-    % Ghost cell 边界设为零（这些区域不参与优化）
-    
-    % === 修改20-A2：改进lambda_fid计算（基于实时Vshape95自适应） ===
-    % 修复：将固定v_shape_target改为实时测量的Vshape95，确保约束力足够
-    % 参考：优化偏离原因分析.md
-    band_est = bands.narrow_10h;  % 优化1.3：使用预计算掩码
+    % === 修改20-A2：改进lambda_fid计算（基于dev95） ===
+    % 参考：解决方案-分点总结.txt A2
+    % dev95比均值更抗噪，基于v_shape_target计算更合理
+    h = min(dx, dy);
+    band_est = abs(lsf) <= 1.0*h;
     vshape_est = -node_sensitivity;
     if any(band_est(:))
         dev = abs(lsf(band_est) - lsf_target_global(band_est));
         dev95 = prctile(dev, 95);  % 改用95%分位，更抗噪
-        Vshape95 = prctile(abs(vshape_est(band_est)), 95);  % 实时测量形状灵敏度强度
+        v_shape_target = 3.0;  % 前期目标幅值（可改为动态）
         factor = 2.5;  % 目标：Vfid95 >= 2.5*Vshape95
-        lambda_fid = factor * Vshape95 / max(dev95, 1e-12);
-        lambda_min = 50.0;   % 下限：避免过小
-        lambda_max = 5000.0; % 上限：避免过大
-        lambda_fid = max(min(lambda_fid, lambda_max), lambda_min);  % 限幅
+        lambda_fid = factor * v_shape_target / max(dev95, 1e-12);
+        lambda_fid = min(lambda_fid, 5000);  % 上限放宽到5000
     else
         lambda_fid = 50.0;  % 回退固定值
     end
-    gamma_curv = 0.5 * h_grid;  % 优化1.3：使用预计算的h_grid
+    gamma_curv = 0.5 * h;  % 曲率正则化系数（阶段2）
     
     % === 强力稳住4：动态v_target（前期慢稳）===
     % build_velocity_field函数内部根据iter动态调整v_target
     % 前100步v_target=3，后期v_target=5
-    [velocity, velocity_stats] = build_velocity_field(node_sensitivity, lsf, dx, dy, 1.5*h_grid, true, lsf_target_global, lambda_fid, material_mask, gamma_curv, iter, ENABLE_ADVANCED_FEATURES);
+    [velocity, velocity_stats] = build_velocity_field(node_sensitivity, lsf, dx, dy, 1.5*h, true, lsf_target_global, lambda_fid, material_mask, gamma_curv, iter);
     
     % 诊断：检查梯度模和偏离量
     if iter == 1 || mod(iter, 10) == 0
@@ -374,14 +315,15 @@ for iter = 1:max_iter
         fprintf('  [诊断] 速度场max_band=%.2e（包含v_fid）\n', velocity_stats.max_band);
         
         % 估算v_fid幅值（用于验证约束强度）
-        if any(bands.narrow_15h(:))  % 优化1.3：使用预计算掩码
-            deviation_band = deviation(bands.narrow_15h);
+        band_mask_diag = abs(lsf) <= 1.5*h;
+        if any(band_mask_diag(:))
+            deviation_band = deviation(band_mask_diag);
             v_fid_estimated = lambda_fid * mean(deviation_band);
             fprintf('  [诊断] 估算v_fid平均幅值=%.2e（lambda_fid=%.1f）\n', v_fid_estimated, lambda_fid);
         end
         
         % 路径一致性统计（在φ=0附近±0.5h范围）
-        zero_band = bands.narrow_05h;  % 优化1.3：使用预计算掩码
+        zero_band = abs(lsf) <= 0.5 * h;
         if any(zero_band(:))
             deviation_zero = deviation(zero_band);
             consistency_ratio = sum(deviation_zero < h) / numel(deviation_zero) * 100;
@@ -392,7 +334,7 @@ for iter = 1:max_iter
         % === Vfid/Vshape驱动对比诊断（清单四-1）===
         % 参考：修改与保留清单.txt 四-1)
         % 验证约束驱动强度是否>=1.5
-        band_chk = bands.narrow_10h;  % 优化1.3：使用预计算掩码
+        band_chk = abs(lsf) <= 1.0*h;
         if any(band_chk(:))
             vshape_band = -node_sensitivity(band_chk);
             deviation_band_chk = lsf(band_chk) - lsf_target_global(band_chk);
@@ -414,14 +356,16 @@ for iter = 1:max_iter
         end
     end
 
-    % === 时间步长计算（修改时间：2025-10-30）===
-    % 采用论文公式 Δt = Δθ_max / max|∂E/∂φ|，并保留CFL保护
-    dt_cfl = compute_adaptive_timestep(velocity, dx, dy);  % CFL保护
+    dt_adaptive = compute_adaptive_timestep(velocity, dx, dy);
+    if velocity_stats.max_band > 1e-12
+        dt_angle = delta_theta_max / velocity_stats.max_band;
+        dt_adaptive = min(dt_adaptive, dt_angle);
+    end
     max_node_sens = max(abs(node_sensitivity(:)));
-    dt_formula = delta_theta_max / max(max_node_sens, 1e-12);  % 论文公式
-    
-    % 三重保护：CFL + 公式 + 上限
-    dt_adaptive = min([dt_cfl, dt_formula, params.opt.dt]);        
+    if max_node_sens > 1e-12
+        dt_angle_sens = delta_theta_max / max_node_sens;
+        dt_adaptive = min(dt_adaptive, dt_angle_sens);
+    end
 
     if iter == 1 || mod(iter, 10) == 0
         fprintf('  节点灵敏度统计：最大=%.3e，最小=%.3e，平均=%.3e\n', ...
@@ -436,44 +380,29 @@ for iter = 1:max_iter
         predicted_change = velocity_stats.max_band * dt_adaptive;
         fprintf('  预测最大角度变化 %.2f 度\n', predicted_change * 180/pi);
         fprintf('  自适应时间步长: %.6f\n', dt_adaptive);
-        
         diag_report(iter, node_sensitivity, velocity_stats);
     end
 
     % 3.6 更新水平集
     lsf_before = lsf;
     lsf = update_levelset_HJ(lsf, velocity, dt_adaptive, dx, dy);
-    
-    % 保存HJ演化后状态（用于重初始化判据，排除投影影响）
-    lsf_after_HJ = lsf;
-    
-    % === 阶段3：水平集更新验证（检查NaN/Inf） ===
-    if any(~isfinite(lsf(:)))
-        log_message('ERROR', params, '水平集出现NaN/Inf（迭代 %d）', iter);
-        lsf = lsf_before;  % 回退到更新前状态
-        lsf_after_HJ = lsf;  % 同步更新，避免传NaN到should_reinitialize
-        log_message('WARN', params, '已回退到更新前状态');
-    end
 
-
-    grad_stats_hj = [];
-   
-    % === 硬投影控制（学习拓扑优化方法）===
-    % 拓扑优化代码采用纯速度项驱动，无硬投影，通过高频重初始化维护|∇φ|≈1
-    % 当前策略：关闭硬投影，依赖v_fid速度项 + 高频重初始化（每2-5步）
-    % 参考：levelset_top.m，重初始化频率=2，无硬投影
-    ENABLE_HARD_PROJECTION = false;
+    % === 强力稳住2：投影更硬（前期加强）===
+    % 参考：强力稳住-总结清单.txt 一-2)
+    % 前100步强力拉回，后期温和约束
+    ENABLE_HARD_PROJECTION = true;
+    h = min(dx, dy);
     
     if iter <= 100
         omega_proj = 0.7;  % 前100步：更强投影（从0.5提升）
-        proj_band = bands.narrow_15h;  % 优化1.3：前100步更宽带
+        proj_band = abs(lsf) <= 1.5*h;  % 前100步：更宽带（从1.0*h扩大）
     else
         omega_proj = 0.5;  % 后期：正常投影
-        proj_band = bands.narrow_10h;  % 优化1.3：后期标准窄带
+        proj_band = abs(lsf) <= 1.0*h;
     end
     
     if ENABLE_HARD_PROJECTION
-        deviation_proj = lsf(proj_band) - lsf_target_global(proj_band); %#ok<*UNRCH>
+        deviation_proj = lsf(proj_band) - lsf_target_global(proj_band);
         lsf(proj_band) = lsf(proj_band) - omega_proj * deviation_proj;
         
         if iter == 1 || mod(iter, 10) == 0
@@ -487,72 +416,34 @@ for iter = 1:max_iter
         end
     end
 
-    grad_stats_proj = [];
-    
-
-    % 分别计算HJ演化量和投影修正量
-    lsf_change_HJ = max(abs(lsf_after_HJ(:) - lsf_before(:)));
-    lsf_change_total = max(abs(lsf(:) - lsf_before(:)));
-    lsf_change_proj = max(abs(lsf(:) - lsf_after_HJ(:)));
-    
+    lsf_change = max(abs(lsf(:) - lsf_before(:)));
     if mod(iter, 10) == 0
-        fprintf('  [水平集变化] HJ演化=%.3e, 投影修正=%.3e, 总计=%.3e\n', ...
-            lsf_change_HJ, lsf_change_proj, lsf_change_total);
+        fprintf('  水平集变化: %.3e\n', lsf_change);
     end
 
-    % === 阶段2：自适应重初始化（智能判断） ===
-    % 初始化计数器（第一次迭代）
-    if iter == 1
-        iter_since_last_reinit = 0;
+    % === 强力稳住6：重初始化更频繁（前期）===
+    % 参考：强力稳住-总结清单.txt 一-6)
+    % 前100步每5步，后期每10步
+    if iter <= 100
+        reinit_freq = 5;  % 前100步：频繁重初始化
+    else
+        reinit_freq = 10;  % 后期：正常频率
     end
     
-    iter_since_last_reinit = iter_since_last_reinit + 1;
-    
-    % === 重初始化判据说明（刻意设计） ===
-    % 分离两个判据的输入（2025-10-23 修复）：
-    %   1. 变化量判据：基于lsf_after_HJ（HJ演化后、投影前），排除投影修正的影响
-    %   2. 梯度偏差判据：基于lsf（投影后），使用最终状态的梯度质量
-    % 原因：
-    %   - HJ演化会导致符号距离性质退化，需要监控变化量
-    %   - 投影会修正水平集，需要基于投影后的最终状态评估梯度质量
-    %   - 避免投影修正触发"变化量过大"，但保留对梯度质量的正确评估
-    [do_reinit, reinit_reason] = should_reinitialize(lsf_after_HJ, lsf, lsf_before, ...
-        iter_since_last_reinit, iter, params);
-    
-    if do_reinit
-        log_message('INFO', params, '触发重初始化: %s', reinit_reason);
-        fprintf('  [触发时状态] HJ演化=%.3e, 投影修正=%.3e\n', ...
-            lsf_change_HJ, lsf_change_proj);
-        zero_mask_dynamic = compute_zero_mask_from_lsf(lsf, h_grid);
-        
-        % === 重初始化域选择（刻意设计） ===
-        % 设计意图：
-        %   1. 速度场演化仅在材料边界环带更新零等值线（主纤维路径）
-        %   2. FMM重初始化需将距离信息传播到全域（包括void区域）
-        %   3. 全域传播确保FE分析所需的纤维角度场θ(x,y)连续无奇异
-        % 默认：不传material_mask（即全域），避免后续误改
-        % 可选：通过config.levelset.reinit_domain='masked'限制到材料域（仅供试验）
-        if strcmp(params.levelset.reinit_domain, 'masked')
-            reinit_mask = material_mask;
-        else
-            reinit_mask = [];  % 全域传播（默认）
-        end
-        lsf = fmm_reinitialize(lsf, dx, dy, zero_mask_dynamic, reinit_mask);
-       
-        iter_since_last_reinit = 0;  % 重置计数
+    if mod(iter, reinit_freq) == 0
+        zero_mask_dynamic = compute_zero_mask_from_lsf(lsf, min(dx, dy));
+        lsf = fmm_reinitialize(lsf, dx, dy, zero_mask_dynamic, []);
     end
 
     % 3.8 纤维连续性评分
     FCS = compute_fiber_continuity(theta_e);
-    FCS_history(iter) = FCS;  % 优化1.2：直接索引赋值
+    FCS_history(end+1) = FCS;
     theta_old = theta_e;
-    
-    % === 阶段3：检查点保存 ===
-    save_checkpoint(iter, lsf, theta_e, compliance_history, FCS_history, params);
     
     % === 修改20验收诊断（每10步打印） ===
     if mod(iter, 10) == 0
-        band = bands.narrow_10h;  % 优化1.3：使用预计算掩码
+        h = min(dx, dy);
+        band = abs(lsf) <= 1.0*h;
         if any(band(:))
             vshape_band = vshape_est(band);  % 使用原始node_sensitivity
             vfid_band = -lambda_fid * (lsf(band) - lsf_target_global(band));
@@ -565,7 +456,7 @@ for iter = 1:max_iter
                 Vfid95/max(Vshape95,1e-12), dev95, mean_off, FCS*100);
             
             % 达标检查
-            if Vfid95/max(Vshape95,1e-12) >= 2.5 && dev95 < 1.0*h_grid && FCS >= 0.80  % 优化1.3
+            if Vfid95/max(Vshape95,1e-12) >= 2.5 && dev95 < 1.0*h && FCS >= 0.80
                 fprintf('  🎉 已达标！（Vfid95/Vshape95≥2.5, dev95<h, FCS≥80%%）\n');
             end
         end
@@ -602,47 +493,20 @@ for iter = 1:max_iter
     end
 end
 
-% === 优化1.2：裁剪历史数组到实际迭代次数 ===
-final_iter = iter;
-compliance_history = compliance_history(1:final_iter);
-FCS_history = FCS_history(1:final_iter);
-
 %% 4. 可视化与结果汇报
-plot_if_enabled(params, @() visualize_results_article(lsf, theta_e, strain_energy, ...
-    compliance_history, FCS_history, nelx, nely, Lx, Ly, dx, dy));
+visualize_results_article(lsf, theta_e, strain_energy, compliance_history, FCS_history, nelx, nely, Lx, Ly, dx, dy);
 
-log_message('INFO', params, '\n优化完成!');
-log_message('INFO', params, '最终柔度: %.4e', compliance);
-log_message('INFO', params, '纤维连续性评分: %.2f%%', FCS*100);
+fprintf('\n优化完成!\n');
+fprintf('最终柔度: %.4e\n', compliance);
+fprintf('纤维连续性评分: %.2f%%\n', FCS*100);
 
 % 柔度降低比例（方案A修复后应恒为正向下降）
 baseC = compliance_history(1);
 currC = compliance;
 if baseC > 0
     improve_ratio = (baseC - currC) / baseC * 100;
-    log_message('INFO', params, '柔度降低比例: %.2f%% (初始=%.4e, 最终=%.4e)', ...
-        improve_ratio, baseC, currC);
+    fprintf('柔度降低比例: %.2f%% (初始=%.4e, 最终=%.4e)\n', improve_ratio, baseC, currC);
 else
-    log_message('WARN', params, '警告：初始柔度<=0，无法计算降低比例');
+    fprintf('警告：初始柔度<=0，无法计算降低比例\n');
 end
-
-% === 构建结果结构体 ===
-results = struct();
-results.lsf = lsf;
-results.theta_e = theta_e;
-results.compliance_history = compliance_history;
-results.FCS_history = FCS_history;
-results.final_compliance = compliance;
-results.final_FCS = FCS;
-results.final_iter = final_iter;
-results.strain_energy = strain_energy;
-results.params = params;
-
-if baseC > 0
-    results.improvement_ratio = improve_ratio;
-else
-    results.improvement_ratio = NaN;
-end
-
-log_message('INFO', params, '结果已保存至输出结构体');
 end

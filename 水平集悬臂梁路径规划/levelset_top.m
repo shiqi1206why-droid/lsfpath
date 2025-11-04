@@ -1,5 +1,5 @@
 %% TOPOLOGY OPTIMIZATION USING THE LEVEL-SET METHOD, VIVIEN J. CHALLIS 2009
-function [struc] = shuipingji2(nelx,nely,volReq,stepLength,numReinit,topWeight)
+function [struc] = levelset_top(nelx,nely,volReq,stepLength,numReinit,topWeight)
 %Initialization
 nelx = 80;
 nely = 50;
