@@ -27,24 +27,6 @@ function results = fiber_levelset(config_name)
     params = get_fiber_optimization_params(config_name);
     validate_params(params);
     
-    % ========================================================================
-    % 高级功能总控开关（2025-10-31）
-    % ========================================================================
-    % 控制以下6个速度场处理功能：
-    %   1. 去均值（偏置去除）- v_shape梯度权重去均值
-    %   2. 幅值缩放 - P99分位与v_target动态缩放
-    %   3. 运动域收缩 - target_ring收紧窄带
-    %   4. v_fid距离约束项 - 拉回路径到目标等距层
-    %   5. v_curv曲率正则项 - 平滑零水平集
-    %   6. 净平移抑制 - beta加权平均去偏
-    %
-    % 临时关闭高级功能（2025-10-31，链式求和稳定性改造期间）
-    % 参考：链式求和_问题与修改方案.txt 第四点
-    % 默认：true（保持现有行为）
-    % 关闭后：仅使用基础v_shape，无额外处理
-    ENABLE_ADVANCED_FEATURES = false;
-    % ========================================================================
-    
     % 解包常用参数（简化代码）
     nelx = params.grid.nelx;
     nely = params.grid.nely;
@@ -321,33 +303,20 @@ for iter = 1:max_iter
     fprintf('迭代 %d - 灵敏度统计：最大=%e，最小=%e，平均=%e\n', iter, ...
         max(sensitivity(:)), min(sensitivity(:)), mean(abs(sensitivity(:))));
 
-    % === 节点灵敏度聚合（严格模式，使用节点网格） ===
-    % 提取节点水平集值（去掉最外层ghost cell）
-    lsf_nodes = lsf(1:nely+1, 1:nelx+1);
-    % 构造节点窄带掩膜
-    band_mask_nodes = abs(lsf_nodes) <= h_grid;
-    % 调用严格版本的聚合函数（返回 (nely+1) x (nelx+1) 尺寸）
-    node_sens_core = aggregate_node_sensitivity(sensitivity, lsf_nodes, nelx, nely, dx, dy, band_mask_nodes);
+    node_sensitivity = aggregate_node_sensitivity(sensitivity, theta_e, lsf, nelx, nely, dx, dy);
     
-    % 扩展回 (nely+2) x (nelx+2) 以匹配 lsf 的 ghost cell 结构
-    node_sensitivity = zeros(size(lsf));
-    node_sensitivity(1:nely+1, 1:nelx+1) = node_sens_core;
-    % Ghost cell 边界设为零（这些区域不参与优化）
-    
-    % === 修改20-A2：改进lambda_fid计算（基于实时Vshape95自适应） ===
-    % 修复：将固定v_shape_target改为实时测量的Vshape95，确保约束力足够
-    % 参考：优化偏离原因分析.md
+    % === 修改20-A2：改进lambda_fid计算（基于dev95） ===
+    % 参考：解决方案-分点总结.txt A2
+    % dev95比均值更抗噪，基于v_shape_target计算更合理
     band_est = bands.narrow_10h;  % 优化1.3：使用预计算掩码
     vshape_est = -node_sensitivity;
     if any(band_est(:))
         dev = abs(lsf(band_est) - lsf_target_global(band_est));
         dev95 = prctile(dev, 95);  % 改用95%分位，更抗噪
-        Vshape95 = prctile(abs(vshape_est(band_est)), 95);  % 实时测量形状灵敏度强度
+        v_shape_target = 3.0;  % 前期目标幅值（可改为动态）
         factor = 2.5;  % 目标：Vfid95 >= 2.5*Vshape95
-        lambda_fid = factor * Vshape95 / max(dev95, 1e-12);
-        lambda_min = 50.0;   % 下限：避免过小
-        lambda_max = 5000.0; % 上限：避免过大
-        lambda_fid = max(min(lambda_fid, lambda_max), lambda_min);  % 限幅
+        lambda_fid = factor * v_shape_target / max(dev95, 1e-12);
+        lambda_fid = min(lambda_fid, 5000);  % 上限放宽到5000
     else
         lambda_fid = 50.0;  % 回退固定值
     end
@@ -356,7 +325,7 @@ for iter = 1:max_iter
     % === 强力稳住4：动态v_target（前期慢稳）===
     % build_velocity_field函数内部根据iter动态调整v_target
     % 前100步v_target=3，后期v_target=5
-    [velocity, velocity_stats] = build_velocity_field(node_sensitivity, lsf, dx, dy, 1.5*h_grid, true, lsf_target_global, lambda_fid, material_mask, gamma_curv, iter, ENABLE_ADVANCED_FEATURES);
+    [velocity, velocity_stats] = build_velocity_field(node_sensitivity, lsf, dx, dy, 1.5*h_grid, true, lsf_target_global, lambda_fid, material_mask, gamma_curv, iter);
     
     % 诊断：检查梯度模和偏离量
     if iter == 1 || mod(iter, 10) == 0
@@ -414,14 +383,16 @@ for iter = 1:max_iter
         end
     end
 
-    % === 时间步长计算（修改时间：2025-10-30）===
-    % 采用论文公式 Δt = Δθ_max / max|∂E/∂φ|，并保留CFL保护
-    dt_cfl = compute_adaptive_timestep(velocity, dx, dy);  % CFL保护
+    dt_adaptive = compute_adaptive_timestep(velocity, dx, dy);
+    if velocity_stats.max_band > 1e-12
+        dt_angle = delta_theta_max / velocity_stats.max_band;
+        dt_adaptive = min(dt_adaptive, dt_angle);
+    end
     max_node_sens = max(abs(node_sensitivity(:)));
-    dt_formula = delta_theta_max / max(max_node_sens, 1e-12);  % 论文公式
-    
-    % 三重保护：CFL + 公式 + 上限
-    dt_adaptive = min([dt_cfl, dt_formula, params.opt.dt]);        
+    if max_node_sens > 1e-12
+        dt_angle_sens = delta_theta_max / max_node_sens;
+        dt_adaptive = min(dt_adaptive, dt_angle_sens);
+    end
 
     if iter == 1 || mod(iter, 10) == 0
         fprintf('  节点灵敏度统计：最大=%.3e，最小=%.3e，平均=%.3e\n', ...
@@ -436,7 +407,6 @@ for iter = 1:max_iter
         predicted_change = velocity_stats.max_band * dt_adaptive;
         fprintf('  预测最大角度变化 %.2f 度\n', predicted_change * 180/pi);
         fprintf('  自适应时间步长: %.6f\n', dt_adaptive);
-        
         diag_report(iter, node_sensitivity, velocity_stats);
     end
 
@@ -444,25 +414,17 @@ for iter = 1:max_iter
     lsf_before = lsf;
     lsf = update_levelset_HJ(lsf, velocity, dt_adaptive, dx, dy);
     
-    % 保存HJ演化后状态（用于重初始化判据，排除投影影响）
-    lsf_after_HJ = lsf;
-    
     % === 阶段3：水平集更新验证（检查NaN/Inf） ===
     if any(~isfinite(lsf(:)))
         log_message('ERROR', params, '水平集出现NaN/Inf（迭代 %d）', iter);
         lsf = lsf_before;  % 回退到更新前状态
-        lsf_after_HJ = lsf;  % 同步更新，避免传NaN到should_reinitialize
         log_message('WARN', params, '已回退到更新前状态');
     end
 
-
-    grad_stats_hj = [];
-   
-    % === 硬投影控制（学习拓扑优化方法）===
-    % 拓扑优化代码采用纯速度项驱动，无硬投影，通过高频重初始化维护|∇φ|≈1
-    % 当前策略：关闭硬投影，依赖v_fid速度项 + 高频重初始化（每2-5步）
-    % 参考：levelset_top.m，重初始化频率=2，无硬投影
-    ENABLE_HARD_PROJECTION = false;
+    % === 强力稳住2：投影更硬（前期加强）===
+    % 参考：强力稳住-总结清单.txt 一-2)
+    % 前100步强力拉回，后期温和约束
+    ENABLE_HARD_PROJECTION = true;
     
     if iter <= 100
         omega_proj = 0.7;  % 前100步：更强投影（从0.5提升）
@@ -473,7 +435,7 @@ for iter = 1:max_iter
     end
     
     if ENABLE_HARD_PROJECTION
-        deviation_proj = lsf(proj_band) - lsf_target_global(proj_band); %#ok<*UNRCH>
+        deviation_proj = lsf(proj_band) - lsf_target_global(proj_band);
         lsf(proj_band) = lsf(proj_band) - omega_proj * deviation_proj;
         
         if iter == 1 || mod(iter, 10) == 0
@@ -487,17 +449,9 @@ for iter = 1:max_iter
         end
     end
 
-    grad_stats_proj = [];
-    
-
-    % 分别计算HJ演化量和投影修正量
-    lsf_change_HJ = max(abs(lsf_after_HJ(:) - lsf_before(:)));
-    lsf_change_total = max(abs(lsf(:) - lsf_before(:)));
-    lsf_change_proj = max(abs(lsf(:) - lsf_after_HJ(:)));
-    
+    lsf_change = max(abs(lsf(:) - lsf_before(:)));
     if mod(iter, 10) == 0
-        fprintf('  [水平集变化] HJ演化=%.3e, 投影修正=%.3e, 总计=%.3e\n', ...
-            lsf_change_HJ, lsf_change_proj, lsf_change_total);
+        fprintf('  水平集变化: %.3e\n', lsf_change);
     end
 
     % === 阶段2：自适应重初始化（智能判断） ===
@@ -507,22 +461,11 @@ for iter = 1:max_iter
     end
     
     iter_since_last_reinit = iter_since_last_reinit + 1;
-    
-    % === 重初始化判据说明（刻意设计） ===
-    % 分离两个判据的输入（2025-10-23 修复）：
-    %   1. 变化量判据：基于lsf_after_HJ（HJ演化后、投影前），排除投影修正的影响
-    %   2. 梯度偏差判据：基于lsf（投影后），使用最终状态的梯度质量
-    % 原因：
-    %   - HJ演化会导致符号距离性质退化，需要监控变化量
-    %   - 投影会修正水平集，需要基于投影后的最终状态评估梯度质量
-    %   - 避免投影修正触发"变化量过大"，但保留对梯度质量的正确评估
-    [do_reinit, reinit_reason] = should_reinitialize(lsf_after_HJ, lsf, lsf_before, ...
+    [do_reinit, reinit_reason] = should_reinitialize(lsf, lsf_before, ...
         iter_since_last_reinit, iter, params);
     
     if do_reinit
         log_message('INFO', params, '触发重初始化: %s', reinit_reason);
-        fprintf('  [触发时状态] HJ演化=%.3e, 投影修正=%.3e\n', ...
-            lsf_change_HJ, lsf_change_proj);
         zero_mask_dynamic = compute_zero_mask_from_lsf(lsf, h_grid);
         
         % === 重初始化域选择（刻意设计） ===
@@ -538,7 +481,6 @@ for iter = 1:max_iter
             reinit_mask = [];  % 全域传播（默认）
         end
         lsf = fmm_reinitialize(lsf, dx, dy, zero_mask_dynamic, reinit_mask);
-       
         iter_since_last_reinit = 0;  % 重置计数
     end
 
@@ -645,4 +587,5 @@ else
 end
 
 log_message('INFO', params, '结果已保存至输出结构体');
+
 end

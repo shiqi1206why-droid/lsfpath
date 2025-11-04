@@ -30,22 +30,22 @@ function params = get_fiber_optimization_params(config_name)
     base.material = get_material_params('carbon_fiber');
     
     % 优化控制
-    base.opt.max_iter = 200;
+    base.opt.max_iter = 1000;
+    base.opt.tol = 1e-5;
     base.opt.alpha = 0.5;
     base.opt.dt = 0.05;
-    base.opt.delta_theta_max_deg = 2;
+    base.opt.delta_theta_max_deg = 5;
     base.opt.fidelity_weight = 0.05;
-    base.opt.tol = 1e-5;
+    
     % 水平集参数（消除魔法数字）
     base.levelset.delta_phi_factor = 0.8;       % 边界偏移因子
     base.levelset.bandwidth_factor = 1.5;       % 窄带宽度因子
     base.levelset.transition_iter = 100;        % 前期/后期分界点
-    base.levelset.reinit_freq_early = 2;        % 前期重初始化频率（高频，学习拓扑优化）
-    base.levelset.reinit_freq_late = 5;         % 后期重初始化频率（中频）
+    base.levelset.reinit_freq_early = 5;        % 前期重初始化频率
+    base.levelset.reinit_freq_late = 10;        % 后期重初始化频率
     base.levelset.reinit_threshold = 0.75;      % 自适应重初始化阈值（相对h）
-    base.levelset.reinit_max_interval = 8;      % 最大重初始化间隔（从15降为8，更保守）
-    base.levelset.gradient_deviation_tol = 0.80;% 梯度偏差容差（放宽，主要依赖固定频率重初始化）
-    base.levelset.reinit_grad_bandwidth = 1.5;  % 梯度统计窄带宽度（相对h），只关心主路径附近的梯度质量
+    base.levelset.reinit_max_interval = 15;     % 最大重初始化间隔
+    base.levelset.gradient_deviation_tol = 0.05;% 梯度偏差容差
     base.levelset.reinit_domain = 'full';       % 重初始化域：'full'=全域传播（默认）,'masked'=限制到材料域（试验）
     
     % 投影参数

@@ -18,7 +18,7 @@ function Ke = element_stiffness(theta, E_L, E_T, nu_LT, G_LT, t, dx, dy)
          -s*c, s*c,  c^2-s^2];
 
     C = T' * Q * T;
- 
+
     gauss_points = [-1/sqrt(3), 1/sqrt(3)];
     gauss_weights = [1, 1];
     Ke = zeros(8, 8);
