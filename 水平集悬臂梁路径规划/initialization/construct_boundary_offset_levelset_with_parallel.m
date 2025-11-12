@@ -44,7 +44,8 @@ function [lsf, parallel_paths, init_info] = construct_boundary_offset_levelset_w
     zero_mask(end, :) = zero_mask(end-1, :);
     zero_mask(:, 1) = zero_mask(:, 2);
     zero_mask(:, end) = zero_mask(:, end-1);
-    lsf = fmm_reinitialize(lsf, dx, dy, zero_mask, mask);
+    % 在全域传播，避免外圈被掩膜截断
+    lsf = fmm_reinitialize(lsf, dx, dy, zero_mask, []);
 
     spacing = h;
     max_distance = max(abs(lsf(:)));

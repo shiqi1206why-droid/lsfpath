@@ -87,40 +87,11 @@ function [velocity_field, stats] = build_velocity_field(node_sensitivity, lsf, d
         return;
     end
 
-    % === 强力稳住3：运动域再收紧（环带+目标护栏）===
-    % 参考：强力稳住-总结清单.txt 一-3)
-    % 双重限制：材料环带 + 目标护栏
-    if ~isempty(material_mask)
-        % 提取材料边界外周
-        boundary_perim = bwperim(material_mask);
-        
-        % 形态学膨胀（环带更紧）
-        r = 1;  % 从2缩减到1，更紧
-        boundary_region = imdilate(boundary_perim, strel('disk', r));
-        
-        % 扩展到含ghost cells的尺寸
-        if size(boundary_region, 1) == size(lsf, 1) - 2
-            boundary_region_expanded = false(size(lsf));
-            boundary_region_expanded(2:end-1, 2:end-1) = boundary_region;
-            boundary_region_expanded(1, :) = boundary_region_expanded(2, :);
-            boundary_region_expanded(end, :) = boundary_region_expanded(end-1, :);
-            boundary_region_expanded(:, 1) = boundary_region_expanded(:, 2);
-            boundary_region_expanded(:, end) = boundary_region_expanded(:, end-1);
-            boundary_region = boundary_region_expanded;
-        end
-        
-        % 叠加材料环带
-        band_mask = band_mask & boundary_region;
-        
-        % 增加目标护栏：限制在目标层附近3h范围
-        h = min(dx, dy);
-        target_ring = abs(lsf_target) <= 3*h;
-        band_mask = band_mask & target_ring;
-        
-        % 统计运动域限制效果
-        boundary_nodes = nnz(band_mask);
-        fprintf('  [运动域收紧] 环带r=%d，目标护栏=±%.2fh，窄带节点数=%d\n', r, 3.0, boundary_nodes);
-    end
+    % === 强力稳住3：仅保留目标护栏（几何限制）===
+    h = min(dx, dy);
+    ring_half_width = 3 * h;
+    target_ring = abs(lsf_target) <= ring_half_width;
+    band_mask = band_mask & target_ring;
 
     velocity_field(~band_mask) = 0;
 
@@ -154,19 +125,7 @@ function [velocity_field, stats] = build_velocity_field(node_sensitivity, lsf, d
         end
     end
 
-    % === 强力稳住5：去掉v_fid限幅 ===
-    % 参考：强力稳住-总结清单.txt 一-5)
-    % V_fid = -λ_fid · (φ - φ_target)，将路径拉回到边界等距位置
-    if lambda_fid > 0
-        deviation = lsf - lsf_target;  % 偏离量
-        % 大幅放宽限幅：让约束项充分发挥作用
-        h = min(dx, dy);
-        max_deviation = 100 * h;  % 从20*h大幅放宽至100*h，几乎不限幅
-        deviation = sign(deviation) .* min(abs(deviation), max_deviation);
-        v_fid = -lambda_fid * deviation;  % Bug 1修复：加负号
-        v_fid(~band_mask) = 0;  % 仅在窄带内生效
-        velocity_field = velocity_field + v_fid;  % Bug 1+4修复：在缩放后加入
-    end
+    % 等距约束v_fid已禁用，依赖FMM保持等距信息
 
     % === 曲率正则化（纤维路径-修改思路.txt 三-5)、三-6)） ===
     % 平滑路径，抑制锯齿状震荡和局部尖角
