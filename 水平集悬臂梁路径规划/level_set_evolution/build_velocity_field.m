@@ -1,8 +1,5 @@
-function [velocity_field, stats] = build_velocity_field(node_sensitivity, lsf, dx, dy, bandwidth, remove_bias, lsf_target, lambda_fid, material_mask, gamma_curv, iter)
+function [velocity_field, stats] = build_velocity_field(node_sensitivity, lsf, dx, dy, bandwidth, remove_bias, gamma_curv, iter)
     % 构造用于水平集演化的窄带法向速度场
-    % 参数：lsf_target为边界等距目标场，lambda_fid为等距约束权重
-    %       material_mask用于边界邻域限制，gamma_curv为曲率正则化系数
-    %       iter为当前迭代次数（用于动态调整v_target等参数）
 
     if nargin < 5 || isempty(bandwidth)
         bandwidth = 2 * min(dx, dy);
@@ -10,19 +7,10 @@ function [velocity_field, stats] = build_velocity_field(node_sensitivity, lsf, d
     if nargin < 6 || isempty(remove_bias)
         remove_bias = true;
     end
-    if nargin < 7 || isempty(lsf_target)
-        lsf_target = lsf;  % 若未提供，使用当前lsf（退化为无约束）
-    end
-    if nargin < 8 || isempty(lambda_fid)
-        lambda_fid = 0;  % 默认不启用等距约束
-    end
-    if nargin < 9
-        material_mask = [];  % 默认不启用边界邻域限制
-    end
-    if nargin < 10 || isempty(gamma_curv)
+    if nargin < 7 || isempty(gamma_curv)
         gamma_curv = 0;  % 默认不启用曲率正则化
     end
-    if nargin < 11 || isempty(iter)
+    if nargin < 8 || isempty(iter)
         iter = 1;  % 默认迭代1
     end
 
@@ -39,8 +27,7 @@ function [velocity_field, stats] = build_velocity_field(node_sensitivity, lsf, d
         node_sensitivity = sensitivity_expanded;
     end
 
-    % === 强力稳住7（细节A）：去均值顺序优化 ===
-    % 参考：强力稳住-总结清单.txt 二-A)
+
     % 步骤：1) v_shape去均值 → 2) 合成 → 3) 轻微抑制净平移
     
     stats = struct('bandwidth', bandwidth, 'band_fraction', 0, 'mean_band', 0, ...
@@ -82,8 +69,12 @@ function [velocity_field, stats] = build_velocity_field(node_sensitivity, lsf, d
     grad_magnitude = hypot(grad_x, grad_y);
     grad_magnitude = max(grad_magnitude, 1e-12);
 
-    % 全域更新：band_mask覆盖整个定义域
-    band_mask = true(size(lsf));
+    % 仅在带宽内更新，其余位置速度置零
+    band_mask = abs(lsf) <= bandwidth;
+    if ~any(band_mask(:))
+        velocity_field(:) = 0;
+        return;
+    end
     velocity_field(~band_mask) = 0;
 
     % === 幅值缩放（Bug 4修复：仅缩放v_shape，不缩放约束项） ===

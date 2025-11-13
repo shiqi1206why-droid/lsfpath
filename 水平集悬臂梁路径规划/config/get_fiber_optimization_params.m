@@ -45,7 +45,8 @@ function params = get_fiber_optimization_params(config_name)
     base.levelset.reinit_freq_late = 10;        % 后期重初始化频率
     base.levelset.reinit_threshold = 0.75;      % 自适应重初始化阈值（相对h）
     base.levelset.reinit_max_interval = 15;     % 最大重初始化间隔
-    base.levelset.gradient_deviation_tol = 0.05;% 梯度偏差容差
+    base.levelset.gradient_deviation_tol = 0.15;% 梯度偏差容差
+    base.levelset.reinit_bandwidth_factor = 1.5;% 重初始化判据带宽（|φ|<=band*h）
     base.levelset.reinit_domain = 'full';       % 重初始化域：'full'=全域传播（默认）,'masked'=限制到材料域（试验）
     
     % 投影参数

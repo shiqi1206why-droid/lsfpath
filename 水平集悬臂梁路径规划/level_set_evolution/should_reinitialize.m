@@ -26,8 +26,18 @@ function [should_reinit, reason] = should_reinitialize(lsf, lsf_before, ...
     dx = params.grid.dx;
     dy = params.grid.dy;
     
-    % 判据1：水平集变化过大
-    lsf_change = max(abs(lsf(:) - lsf_before(:)));
+    band_factor = params.levelset.reinit_bandwidth_factor;
+    if isempty(band_factor) || band_factor <= 0
+        band_factor = 1.5;
+    end
+    band_mask = abs(lsf) <= band_factor * h;
+    if ~any(band_mask(:))
+        band_mask = true(size(lsf));
+    end
+    
+    % 判据1：水平集变化过大（仅在主路径带宽内检测）
+    lsf_diff = abs(lsf - lsf_before);
+    lsf_change = max(lsf_diff(band_mask));
     threshold_change = params.levelset.reinit_threshold * h;
     if lsf_change > threshold_change
         should_reinit = true;
@@ -35,10 +45,11 @@ function [should_reinit, reason] = should_reinitialize(lsf, lsf_before, ...
         return;
     end
     
-    % 判据2：梯度模偏离1过多（符号距离性质退化）
+    % 判据2：梯度模偏离1过多（仅在主路径带宽内检测）
     [grad_y, grad_x] = gradient(lsf, dy, dx);
     grad_mag = hypot(grad_x, grad_y);
-    grad_deviation = mean(abs(grad_mag(:) - 1));
+    grad_band = grad_mag(band_mask);
+    grad_deviation = mean(abs(grad_band(:) - 1));
     grad_tol = params.levelset.gradient_deviation_tol;
     if grad_deviation > grad_tol
         should_reinit = true;

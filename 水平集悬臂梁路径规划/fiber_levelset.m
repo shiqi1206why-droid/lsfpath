@@ -325,7 +325,7 @@ for iter = 1:max_iter
     % === 强力稳住4：动态v_target（前期慢稳）===
     % build_velocity_field函数内部根据iter动态调整v_target
     % 前100步v_target=3，后期v_target=5
-    [velocity, velocity_stats] = build_velocity_field(node_sensitivity, lsf, dx, dy, 1.5*h_grid, true, lsf_target_global, lambda_fid, [], gamma_curv, iter);
+    [velocity, velocity_stats] = build_velocity_field(node_sensitivity, lsf, dx, dy, 1.5*h_grid, true, gamma_curv, iter);
     
     % 诊断：检查梯度模和偏离量
     if iter == 1 || mod(iter, 10) == 0
