@@ -24,6 +24,21 @@ function lsf = fmm_reinitialize(lsf, dx, dy, zero_mask, material_mask)
         material_mask = true(size(lsf));
     end
     
+    % 始终使用当前φ的零界面作为FMM种子
+    tol_zero = 0.5 * min(dx, dy);
+    zero_mask_current = abs(lsf) <= tol_zero;
+    if ~any(zero_mask_current(:))
+        % 兜底：若当前φ无零交点，退回调用方提供的掩膜
+        if nargin >= 4 && ~isempty(zero_mask)
+            zero_mask_current = logical(zero_mask);
+        else
+            % 仍无种子则强制设置为中心点
+            zero_mask_current = false(size(lsf));
+            zero_mask_current(round(end/2), round(end/2)) = true;
+        end
+    end
+    zero_mask = zero_mask_current;
+    
     % 保存原始符号
     sign_field = sign(lsf);
     sign_field(sign_field == 0) = 1;  % 零处默认为正

@@ -30,7 +30,7 @@ function params = get_fiber_optimization_params(config_name)
     base.material = get_material_params('carbon_fiber');
     
     % 优化控制
-    base.opt.max_iter = 1000;
+    base.opt.max_iter = 300;
     base.opt.tol = 1e-5;
     base.opt.alpha = 0.5;
     base.opt.dt = 0.05;

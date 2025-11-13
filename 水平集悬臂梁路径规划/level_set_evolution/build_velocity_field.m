@@ -82,17 +82,8 @@ function [velocity_field, stats] = build_velocity_field(node_sensitivity, lsf, d
     grad_magnitude = hypot(grad_x, grad_y);
     grad_magnitude = max(grad_magnitude, 1e-12);
 
-    band_mask = abs(lsf) <= bandwidth;
-    if ~any(band_mask(:))
-        return;
-    end
-
-    % === 强力稳住3：仅保留目标护栏（几何限制）===
-    h = min(dx, dy);
-    ring_half_width = 3 * h;
-    target_ring = abs(lsf_target) <= ring_half_width;
-    band_mask = band_mask & target_ring;
-
+    % 全域更新：band_mask覆盖整个定义域
+    band_mask = true(size(lsf));
     velocity_field(~band_mask) = 0;
 
     % === 幅值缩放（Bug 4修复：仅缩放v_shape，不缩放约束项） ===
