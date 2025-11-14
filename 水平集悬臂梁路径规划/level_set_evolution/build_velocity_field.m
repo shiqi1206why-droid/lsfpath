@@ -86,25 +86,9 @@ function [velocity_field, stats] = build_velocity_field(node_sensitivity, lsf, d
     band_values = velocity_field(band_mask);
     
     v_abs = abs(band_values);
-    if ~isempty(v_abs)
-        v_sorted = sort(v_abs(:));
-        k = max(1, round(0.99 * numel(v_sorted)));
-        v_robust = v_sorted(k);
-        if isfinite(v_robust) && v_robust > 0
-            % === 强力稳住4：步幅更小（前期慢稳）===
-            % 参考：强力稳住-总结清单.txt 一-4)
-            % 前100步极慢，后期正常
-            if iter <= 100
-                v_target = 3;  % 前100步：极慢步幅
-            else
-                v_target = 5;  % 后期：正常步幅
-            end
-            scale = min(1, v_target / v_robust);
-            if scale < 1
-                velocity_field(band_mask) = band_values * scale;
-                band_values = band_values * scale;
-            end
-        end
+    if any(~isfinite(v_abs))
+        warning('velocity_field: v_abs 包含非有限值，已强制置零');
+        velocity_field(~isfinite(velocity_field)) = 0;
     end
 
     % 等距约束v_fid已禁用，依赖FMM保持等距信息

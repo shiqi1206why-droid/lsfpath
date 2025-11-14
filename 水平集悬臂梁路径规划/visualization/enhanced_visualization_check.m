@@ -38,20 +38,24 @@ function enhanced_visualization_check(lsf, material_mask, parallel_paths, struc,
     subplot(2,3,3);
     [grad_y, grad_x] = gradient(lsf, dy, dx);
     grad_magnitude = hypot(grad_x, grad_y);
-    imagesc(grad_magnitude);
+    imagesc(0:nelx+1, 0:nely+1, grad_magnitude);
+    set(gca, 'YDir', 'reverse');
+    axis equal; axis tight;
     colorbar;
     title('|∇φ|');
-    xlabel('x 索引');
-    ylabel('y 索引');
+    xlabel('x方向单元索引');
+    ylabel('y方向单元索引');
 
     % 子图4：符号分布
     subplot(2,3,4);
-    imagesc(sign(lsf));
+    imagesc(0:nelx+1, 0:nely+1, sign(lsf));
+    set(gca, 'YDir', 'reverse');
+    axis equal; axis tight;
     colormap(gca, jet);
     colorbar;
     title('φ 符号分布');
-    xlabel('x 索引');
-    ylabel('y 索引');
+    xlabel('x方向单元索引');
+    ylabel('y方向单元索引');
 
     % 子图5：窄带梯度直方图
     subplot(2,3,5);

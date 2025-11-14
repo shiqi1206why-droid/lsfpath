@@ -1,5 +1,9 @@
-function sensitivity = compute_sensitivity_adjoint(nelx, nely, U, theta_e, E_L, E_T, nu_LT, G_LT, t, dx, dy)
+function sensitivity = compute_sensitivity_adjoint(nelx, nely, U, theta_e, E_L, E_T, nu_LT, G_LT, t, dx, dy, normalize_flag)
     % 纤维角度对应变能的伴随灵敏度分析
+
+    if nargin < 12 || isempty(normalize_flag)
+        normalize_flag = true;
+    end
 
     sensitivity = zeros(nely, nelx);
     alpha = 0.5;
@@ -29,9 +33,11 @@ function sensitivity = compute_sensitivity_adjoint(nelx, nely, U, theta_e, E_L, 
         end
     end
 
-    max_sensitivity = max(abs(sensitivity(:)));
-    if max_sensitivity > 1e-10
-        sensitivity = sensitivity / max_sensitivity;
+    if normalize_flag
+        max_sensitivity = max(abs(sensitivity(:)));
+        if max_sensitivity > 1e-10
+            sensitivity = sensitivity / max_sensitivity;
+        end
     end
 end
 

@@ -298,7 +298,7 @@ for iter = 1:max_iter
     strain_energy = compute_strain_energy(nelx, nely, U, theta_e, E_L, E_T, nu_LT, G_LT, thickness, dx, dy);
 
     % 3.5 灵敏度与速度场
-    sensitivity = compute_sensitivity_adjoint(nelx, nely, U, theta_e, E_L, E_T, nu_LT, G_LT, thickness, dx, dy);
+    sensitivity = compute_sensitivity_adjoint(nelx, nely, U, theta_e, E_L, E_T, nu_LT, G_LT, thickness, dx, dy, params.opt.normalize_sensitivity);
 
     fprintf('迭代 %d - 灵敏度统计：最大=%e，最小=%e，平均=%e\n', iter, ...
         max(sensitivity(:)), min(sensitivity(:)), mean(abs(sensitivity(:))));
@@ -325,7 +325,12 @@ for iter = 1:max_iter
     % === 强力稳住4：动态v_target（前期慢稳）===
     % build_velocity_field函数内部根据iter动态调整v_target
     % 前100步v_target=3，后期v_target=5
-    [velocity, velocity_stats] = build_velocity_field(node_sensitivity, lsf, dx, dy, 1.5*h_grid, true, gamma_curv, iter);
+    if params.opt.enable_curvature
+        curvature_gamma = gamma_curv;
+    else
+        curvature_gamma = 0;
+    end
+    [velocity, velocity_stats] = build_velocity_field(node_sensitivity, lsf, dx, dy, 1.5*h_grid, true, curvature_gamma, iter);
     
     % 诊断：检查梯度模和偏离量
     if iter == 1 || mod(iter, 10) == 0
@@ -424,7 +429,7 @@ for iter = 1:max_iter
     % === 强力稳住2：投影更硬（前期加强）===
     % 参考：强力稳住-总结清单.txt 一-2)
     % 前100步强力拉回，后期温和约束
-    ENABLE_HARD_PROJECTION = true;
+    ENABLE_HARD_PROJECTION = false;
     
     if iter <= 100
         omega_proj = 0.7;  % 前100步：更强投影（从0.5提升）

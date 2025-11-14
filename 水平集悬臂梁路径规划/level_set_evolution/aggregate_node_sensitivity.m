@@ -4,56 +4,78 @@ function node_sensitivity = aggregate_node_sensitivity(element_sensitivity, thet
     global DIAG;
     node_sensitivity = zeros(size(lsf));
 
+    dN_dxi = [-0.25,  0.25,  0.25, -0.25];
+    dN_deta = [-0.25, -0.25,  0.25,  0.25];
+    dN_dx = dN_dxi * (2/dx);
+    dN_dy = dN_deta * (2/dy);
+    grad_threshold = 0.05;
+    epsilon = 0.1 * min(dx, dy);
+
     for ely = 1:nely
         for elx = 1:nelx
-            ci = ely + 1;
-            cj = elx + 1;
+            base_i = ely + 1;
+            base_j = elx + 1;
 
-            phi_x = (lsf(ci, cj+1) - lsf(ci, cj-1)) / (2*dx);
-            phi_y = (lsf(ci+1, cj) - lsf(ci-1, cj)) / (2*dy);
+            node_coords = [base_i,   base_j;
+                           base_i+1, base_j;
+                           base_i+1, base_j+1;
+                           base_i,   base_j+1];
+
+            phi_nodes = zeros(1,4);
+            for k = 1:4
+                phi_nodes(k) = lsf(node_coords(k,1), node_coords(k,2));
+            end
+
+            dphi_dx = sum(dN_dx .* phi_nodes);
+            dphi_dy = sum(dN_dy .* phi_nodes);
+            grad_sq = dphi_dx^2 + dphi_dy^2;
 
             if ~isempty(DIAG)
                 DIAG.theta_grad_samples = DIAG.theta_grad_samples + 1;
             end
 
-            % === 修改14.1：链式法则梯度正则化 ===
-            % 参考：代码修改交流.md 2025-10-20，论文推荐方法
-            
-            % 第1步：梯度阈值过滤（跳过影响极小的单元）
-            h = min(dx, dy);
-            grad_sq = phi_x^2 + phi_y^2;
-            grad_threshold = 0.05;  % 论文推荐值
-            
             if grad_sq < grad_threshold^2
-                % |∇φ| < 0.05，影响极小，直接跳过
                 if ~isempty(DIAG)
                     DIAG.theta_grad_small = DIAG.theta_grad_small + 1;
-                    DIAG.den_small = DIAG.den_small + 1;
                 end
                 continue;
             end
-            
-            % 第2步：ε²正则化（防止分母过小导致数值爆炸）
-            epsilon = 0.1 * h;  % 论文推荐：0.1倍网格步长
-            grad_sq_reg = grad_sq + epsilon^2;  % 正则化分母
 
             coeff = element_sensitivity(ely, elx);
-            % 使用正则化后的分母，防止灵敏度爆炸至10⁵级
-            dtheta_dphi_y_plus = (phi_x / grad_sq_reg) * (1/(2*dy));
-            dtheta_dphi_y_minus = (phi_x / grad_sq_reg) * (-1/(2*dy));
-            dtheta_dphi_x_plus = (-phi_y / grad_sq_reg) * (1/(2*dx));
-            dtheta_dphi_x_minus = (-phi_y / grad_sq_reg) * (-1/(2*dx));
+            if coeff == 0
+                continue;
+            end
 
-            contribs = coeff * [dtheta_dphi_y_plus, dtheta_dphi_y_minus, dtheta_dphi_x_plus, dtheta_dphi_x_minus];
-
-            node_sensitivity(ci+1, cj) = node_sensitivity(ci+1, cj) + contribs(1);
-            node_sensitivity(ci-1, cj) = node_sensitivity(ci-1, cj) + contribs(2);
-            node_sensitivity(ci, cj+1) = node_sensitivity(ci, cj+1) + contribs(3);
-            node_sensitivity(ci, cj-1) = node_sensitivity(ci, cj-1) + contribs(4);
+            for k = 1:4
+                phi_i = phi_nodes(k);
+                Pi = sum(dN_dx .* phi_nodes) - dN_dx(k) * phi_i;
+                Qi = sum(dN_dy .* phi_nodes) - dN_dy(k) * phi_i;
+                A = dN_dx(k) * phi_i + Pi;
+                B = dN_dy(k) * phi_i + Qi;
+                denom = A^2 * ((B/A)^2 + 1);
+                if abs(denom) < epsilon
+                    if ~isempty(DIAG)
+                        DIAG.den_small = DIAG.den_small + 1;
+                    end
+                    continue;
+                end
+                numerator = dN_dy(k) * (dN_dx(k) * phi_i + Pi) - dN_dx(k) * (dN_dy(k) * phi_i + Qi);
+                if ~isfinite(numerator) || ~isfinite(denom) || abs(denom) < epsilon
+                    if ~isempty(DIAG)
+                        DIAG.den_small = DIAG.den_small + 1;
+                    end
+                    continue;
+                end
+                contrib = coeff * (numerator / denom);
+                if ~isfinite(contrib)
+                    warning('aggregate_node_sensitivity: 非有限贡献 (ely=%d, elx=%d, node=%d)', ely, elx, k);
+                    continue;
+                end
+                node_sensitivity(node_coords(k,1), node_coords(k,2)) = node_sensitivity(node_coords(k,1), node_coords(k,2)) + contrib;
+            end
 
             if ~isempty(DIAG)
                 DIAG.contrib_total = DIAG.contrib_total + 4;
-                DIAG.contrib_nonzero = DIAG.contrib_nonzero + nnz(contribs);
             end
         end
     end

@@ -30,14 +30,17 @@ function params = get_fiber_optimization_params(config_name)
     base.material = get_material_params('carbon_fiber');
     
     % 优化控制
-    base.opt.max_iter = 300;
+    base.opt.max_iter = 100;
     base.opt.tol = 1e-5;
     base.opt.alpha = 0.5;
     base.opt.dt = 0.05;
-    base.opt.delta_theta_max_deg = 5;
-    base.opt.fidelity_weight = 0.05;
+    base.opt.delta_theta_max_deg = 3;
+    base.opt.fidelity_weight = 0.02;
+    base.opt.normalize_sensitivity = false;      % 控制灵敏度归一化
+    base.opt.enable_curvature = true;           % 是否启用曲率正则
+    base.opt.normalize_sensitivity = false;      % 控制是否对伴随灵敏度归一化
     
-    % 水平集参数（消除魔法数字）
+    % 水平集参数
     base.levelset.delta_phi_factor = 0.8;       % 边界偏移因子
     base.levelset.bandwidth_factor = 1.5;       % 窄带宽度因子
     base.levelset.transition_iter = 100;        % 前期/后期分界点
@@ -46,7 +49,7 @@ function params = get_fiber_optimization_params(config_name)
     base.levelset.reinit_threshold = 0.75;      % 自适应重初始化阈值（相对h）
     base.levelset.reinit_max_interval = 15;     % 最大重初始化间隔
     base.levelset.gradient_deviation_tol = 0.15;% 梯度偏差容差
-    base.levelset.reinit_bandwidth_factor = 1.5;% 重初始化判据带宽（|φ|<=band*h）
+    base.levelset.reinit_bandwidth_factor = 1.0;% 重初始化判据带宽（|φ|<=band*h）
     base.levelset.reinit_domain = 'full';       % 重初始化域：'full'=全域传播（默认）,'masked'=限制到材料域（试验）
     
     % 投影参数
