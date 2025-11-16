@@ -345,14 +345,7 @@ for iter = 1:max_iter
         % === 修改14.3：添加node_sensitivity和速度场诊断 ===
         fprintf('  [诊断] node_sensitivity：最小=%.2e，最大=%.2e，平均=%.2e\n', ...
             min(node_sensitivity(:)), max(node_sensitivity(:)), mean(abs(node_sensitivity(:))));
-        fprintf('  [诊断] 速度场max_band=%.2e（包含v_fid）\n', velocity_stats.max_band);
-        
-        % 估算v_fid幅值（用于验证约束强度）
-        if any(bands.narrow_15h(:))  % 优化1.3：使用预计算掩码
-            deviation_band = deviation(bands.narrow_15h);
-            v_fid_estimated = lambda_fid * mean(deviation_band);
-            fprintf('  [诊断] 估算v_fid平均幅值=%.2e（lambda_fid=%.1f）\n', v_fid_estimated, lambda_fid);
-        end
+        fprintf('  [诊断] 速度场max_band=%.2e\n', velocity_stats.max_band);
         
         % 路径一致性统计（在φ=0附近±0.5h范围）
         zero_band = bands.narrow_05h;  % 优化1.3：使用预计算掩码
@@ -363,29 +356,7 @@ for iter = 1:max_iter
                 consistency_ratio, mean(deviation_zero));
         end
         
-        % === Vfid/Vshape驱动对比诊断（清单四-1）===
-        % 参考：修改与保留清单.txt 四-1)
-        % 验证约束驱动强度是否>=1.5
-        band_chk = bands.narrow_10h;  % 优化1.3：使用预计算掩码
-        if any(band_chk(:))
-            vshape_band = -node_sensitivity(band_chk);
-            deviation_band_chk = lsf(band_chk) - lsf_target_global(band_chk);
-            vfid_band = -lambda_fid * deviation_band_chk;
-            
-            Vshape = prctile(abs(vshape_band), 95);  % 与lambda_fid计算一致
-            Vfid = prctile(abs(vfid_band), 95);
-            ratio = Vfid / max(Vshape, 1e-12);
-            
-            fprintf('  [驱动对比] Vfid/Vshape = %.2f (目标≥2.5, lambda_fid=%.1f)\n', ratio, lambda_fid);
-            
-            if ratio < 1.5
-                fprintf('  ⚠️  约束驱动严重不足！\n');
-            elseif ratio < 2.5
-                fprintf('  ⚠  约束驱动偏弱，建议提升lambda_fid系数\n');
-            else
-                fprintf('  ✓  约束驱动充足（强力稳住）\n');
-            end
-        end
+        % Vfid 相关诊断已移除（约束项关闭）
     end
 
     dt_adaptive = compute_adaptive_timestep(velocity, dx, dy);
@@ -425,6 +396,10 @@ for iter = 1:max_iter
         lsf = lsf_before;  % 回退到更新前状态
         log_message('WARN', params, '已回退到更新前状态');
     end
+
+    % === 新增：每步必做FMM，全域重建符号距离场 ===
+    zero_mask_main = compute_zero_mask_from_lsf(lsf, h_grid);
+    lsf = fmm_reinitialize(lsf, dx, dy, zero_mask_main, []);
 
     % === 强力稳住2：投影更硬（前期加强）===
     % 参考：强力稳住-总结清单.txt 一-2)

@@ -30,11 +30,11 @@ function params = get_fiber_optimization_params(config_name)
     base.material = get_material_params('carbon_fiber');
     
     % 优化控制
-    base.opt.max_iter = 200;
+    base.opt.max_iter = 100;
     base.opt.tol = 1e-5;
     base.opt.alpha = 0.5;
-    base.opt.dt = 0.05;
-    base.opt.delta_theta_max_deg = 3;
+    base.opt.dt = 0.02;
+    base.opt.delta_theta_max_deg = 5;
     base.opt.fidelity_weight = 0.02;
     base.opt.normalize_sensitivity = false;      % 控制灵敏度归一化
     base.opt.enable_curvature = false;           % 是否启用曲率正则
