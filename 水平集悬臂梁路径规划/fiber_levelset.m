@@ -359,7 +359,10 @@ for iter = 1:max_iter
         % Vfid 相关诊断已移除（约束项关闭）
     end
 
-    dt_adaptive = compute_adaptive_timestep(velocity, dx, dy);
+    narrow_band_mask = bands.narrow_15h;
+    band_velocity = velocity;
+    band_velocity(~narrow_band_mask) = 0;
+    dt_adaptive = compute_adaptive_timestep(band_velocity, dx, dy);
     if velocity_stats.max_band > 1e-12
         dt_angle = delta_theta_max / velocity_stats.max_band;
         dt_adaptive = min(dt_adaptive, dt_angle);
@@ -382,7 +385,7 @@ for iter = 1:max_iter
             velocity_stats.length, velocity_stats.centroid(1), velocity_stats.centroid(2));
         predicted_change = velocity_stats.max_band * dt_adaptive;
         fprintf('  预测最大角度变化 %.2f 度\n', predicted_change * 180/pi);
-        fprintf('  自适应时间步长: %.6f\n', dt_adaptive);
+        fprintf('  自适应时间步长: %.3e\n', dt_adaptive);
         diag_report(iter, node_sensitivity, velocity_stats);
     end
 

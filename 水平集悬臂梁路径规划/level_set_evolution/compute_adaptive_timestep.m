@@ -13,7 +13,7 @@ function dt_adaptive = compute_adaptive_timestep(velocity_field, dx, dy, cfl_fac
     end
 
     v_sorted = sort(v_abs);
-    k = max(1, round(0.99 * numel(v_sorted)));
+    k = max(1, round(0.95 * numel(v_sorted)));
     v_robust = v_sorted(k);
 
     if v_robust < 1e-12
@@ -23,6 +23,7 @@ function dt_adaptive = compute_adaptive_timestep(velocity_field, dx, dy, cfl_fac
 
     grid_spacing = min(dx, dy);
     dt_adaptive = cfl_factor * grid_spacing / v_robust;
-    dt_adaptive = max(min(dt_adaptive, 0.5), 1e-6);
+    dt_min = 0.01 * grid_spacing;
+    dt_adaptive = max(min(dt_adaptive, 0.5), dt_min);
 end
 

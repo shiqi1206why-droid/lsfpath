@@ -9,7 +9,8 @@ function node_sensitivity = aggregate_node_sensitivity(element_sensitivity, thet
     dN_dx = dN_dxi * (2/dx);
     dN_dy = dN_deta * (2/dy);
     grad_threshold = 0.05;
-    epsilon = 0.1 * min(dx, dy);
+    epsilon = 0.1 * min(dx, dy);  % 判定梯度退化的阈值
+    eps_denom = 1e-12;            % 正则化分母的下限
 
     for ely = 1:nely
         for elx = 1:nelx
@@ -52,15 +53,9 @@ function node_sensitivity = aggregate_node_sensitivity(element_sensitivity, thet
                 Qi = sum(dN_dy .* phi_nodes) - dN_dy(k) * phi_i;
                 A = dN_dx(k) * phi_i + Pi;
                 B = dN_dy(k) * phi_i + Qi;
-                denom = A^2 * ((B/A)^2 + 1);
-                if abs(denom) < epsilon
-                    if ~isempty(DIAG)
-                        DIAG.den_small = DIAG.den_small + 1;
-                    end
-                    continue;
-                end
+                denom = max(A * A + B * B, eps_denom);
                 numerator = dN_dy(k) * (dN_dx(k) * phi_i + Pi) - dN_dx(k) * (dN_dy(k) * phi_i + Qi);
-                if ~isfinite(numerator) || ~isfinite(denom) || abs(denom) < epsilon
+                if ~isfinite(numerator)
                     if ~isempty(DIAG)
                         DIAG.den_small = DIAG.den_small + 1;
                     end
@@ -72,6 +67,9 @@ function node_sensitivity = aggregate_node_sensitivity(element_sensitivity, thet
                     continue;
                 end
                 node_sensitivity(node_coords(k,1), node_coords(k,2)) = node_sensitivity(node_coords(k,1), node_coords(k,2)) + contrib;
+                if ~isempty(DIAG) && contrib ~= 0
+                    DIAG.contrib_nonzero = DIAG.contrib_nonzero + 1;
+                end
             end
 
             if ~isempty(DIAG)
