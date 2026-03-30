@@ -1,0 +1,34 @@
+P1/P2 strict equivalence report
+timestamp: 20260330_141244
+config: default
+reference: \\wsl.localhost\ubuntu\home\again\projects\recover\debug\refactor_artifacts\pre_default_20260328_224355.mat
+
+final_compliance = 1
+final_FCS = 1
+final_iter = 1
+compliance_history = 1
+FCS_history = 1
+lsf = 1
+theta_e = 1
+accepted_source_history = 1
+accepted_steps = 1
+rejected_steps = 1
+reject_due_next_guard = 1
+reject_due_current_guard = 1
+reinit_trigger_count = 1
+reinit_skip_due_reject = 1
+reinit_skip_due_objective = 1
+reinit_skip_due_next_guard = 1
+reinit_skip_due_current_guard = 1
+hj_trial_compliance_history = 1
+reinit_trial_compliance_history = 1
+
+final_compliance_rel_diff = 0.0000000000000000e+00
+final_FCS_rel_diff = 0.0000000000000000e+00
+final_iter_diff = 0
+compliance_history_max_abs_diff = 0.0000000000000000e+00
+FCS_history_max_abs_diff = 0.0000000000000000e+00
+lsf_inf_diff = 0.0000000000000000e+00
+theta_inf_diff = NaN
+
+pass_all = 1

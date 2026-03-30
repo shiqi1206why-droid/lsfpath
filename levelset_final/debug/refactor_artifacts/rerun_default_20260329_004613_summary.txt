@@ -1,0 +1,5 @@
+run_tag=rerun_default_20260329_004613
+final_compliance=8.5231331993422949e-07
+final_FCS=8.7652681890600104e-01
+final_iter=38
+image=E:\codex project\recover\debug\refactor_artifacts\rerun_default_20260329_004613_final_lsf.png

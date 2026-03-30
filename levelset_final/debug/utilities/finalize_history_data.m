@@ -1,0 +1,35 @@
+function history_data = finalize_history_data(final_iter, loop_iter_count, history_data)
+%FINALIZE_HISTORY_DATA Trim preallocated history arrays to effective lengths.
+
+    history_data.compliance_history = history_data.compliance_history(1:final_iter);
+    history_data.FCS_history = history_data.FCS_history(1:final_iter);
+    history_data.raw_turn_history = history_data.raw_turn_history(1:final_iter);
+    history_data.raw_kappa_history = history_data.raw_kappa_history(1:final_iter);
+    history_data.raw_spacing_error_history = history_data.raw_spacing_error_history(1:final_iter);
+    history_data.raw_grad_dev_history = history_data.raw_grad_dev_history(1:final_iter);
+    history_data.raw_near_zero_outlier_history = history_data.raw_near_zero_outlier_history(1:final_iter);
+
+    history_data.theta_only_compliance_history = history_data.theta_only_compliance_history(1:loop_iter_count);
+    history_data.hj_raw_compliance_history = history_data.hj_raw_compliance_history(1:loop_iter_count);
+    history_data.hj_trial_compliance_history = history_data.hj_trial_compliance_history(1:loop_iter_count);
+    history_data.hj_local_reinit_compliance_history = history_data.hj_local_reinit_compliance_history(1:loop_iter_count);
+    history_data.reinit_trial_compliance_history = history_data.reinit_trial_compliance_history(1:loop_iter_count);
+    history_data.accepted_source_history = history_data.accepted_source_history(1:loop_iter_count);
+    history_data.accepted_source_detail_history = history_data.accepted_source_detail_history(1:loop_iter_count);
+    history_data.hj_fallback_history = history_data.hj_fallback_history(1:loop_iter_count);
+    history_data.hj_second_order_history = history_data.hj_second_order_history(1:loop_iter_count);
+    history_data.hj_frozen_incomplete_history = history_data.hj_frozen_incomplete_history(1:loop_iter_count);
+    history_data.hj_first_order_complete_history = history_data.hj_first_order_complete_history(1:loop_iter_count);
+    history_data.reinit_method_history = history_data.reinit_method_history(1:loop_iter_count);
+    history_data.reinit_fallback_history = history_data.reinit_fallback_history(1:loop_iter_count);
+    history_data.reinit_reason_history = history_data.reinit_reason_history(1:loop_iter_count);
+    history_data.hj_update_diagnostics_history = history_data.hj_update_diagnostics_history(1:loop_iter_count);
+    history_data.reinit_diagnostics_history = history_data.reinit_diagnostics_history(1:loop_iter_count);
+    history_data.boundary_guard_ratio_history = history_data.boundary_guard_ratio_history(1:loop_iter_count);
+    history_data.frozen_boundary_point_history = history_data.frozen_boundary_point_history(1:loop_iter_count);
+    history_data.local_reinit_shell_size_history = history_data.local_reinit_shell_size_history(1:loop_iter_count);
+    history_data.post_reinit_grad_dev_mean_history = history_data.post_reinit_grad_dev_mean_history(1:loop_iter_count);
+    history_data.post_reinit_grad_outlier_ratio_history = history_data.post_reinit_grad_outlier_ratio_history(1:loop_iter_count);
+    history_data.refresh_shell_size_history = history_data.refresh_shell_size_history(1:loop_iter_count);
+    history_data.executed_iter = final_iter;
+end

@@ -1,0 +1,4 @@
+run_tag=pre_default_20260328_224355
+final_compliance=8.5231331993422949e-07
+final_FCS=8.7652681890600104e-01
+final_iter=38

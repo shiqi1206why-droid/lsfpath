@@ -1,0 +1,10 @@
+pre_file=E:\codex project\recover\debug\refactor_artifacts\pre_default_20260328_224355.mat
+post_file=E:\codex project\recover\debug\refactor_artifacts\post_default_20260328_225529.mat
+final_compliance_rel_diff=0.0000000000000000e+00
+final_FCS_rel_diff=0.0000000000000000e+00
+final_iter_diff=0
+compliance_history_max_abs_diff=0.0000000000000000e+00
+FCS_history_max_abs_diff=0.0000000000000000e+00
+lsf_inf_diff=0.0000000000000000e+00
+theta_inf_diff=0.0000000000000000e+00
+pass_all=1

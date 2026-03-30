@@ -1,0 +1,13 @@
+HJ RHS benchmark report
+timestamp: 20260330_141333
+n_repeat: 8
+
+legacy_order2: rhs_mode=legacy, advection_order=2, mean_time=0.058115 sec
+indexed_order2: rhs_mode=indexed, advection_order=2, mean_time=0.049895 sec
+legacy_order1: rhs_mode=legacy, advection_order=1, mean_time=0.017737 sec
+vectorized_first_order1: rhs_mode=vectorized_first_order, advection_order=1, mean_time=0.004615 sec
+
+eq_legacy_vs_indexed_order2 = 1
+eq_legacy_vs_vectorized_order1 = 1
+speedup_indexed_vs_legacy_order2 = 1.164736
+speedup_vectorized_vs_legacy_order1 = 3.843627

@@ -1,0 +1,24 @@
+Strict refactor equivalence report
+timestamp: 20260329_233903
+config: default
+reference: \\wsl.localhost\ubuntu\home\again\projects\recover\debug\refactor_artifacts\pre_default_20260328_224355.mat
+
+final_compliance = 1
+final_FCS = 1
+final_iter = 1
+compliance_history = 1
+FCS_history = 1
+lsf = 1
+theta_e = 1
+accepted_source_history = 1
+accepted_steps = 1
+rejected_steps = 1
+reject_due_next_guard = 1
+reject_due_current_guard = 1
+reinit_trigger_count = 1
+reinit_skip_due_reject = 1
+reinit_skip_due_objective = 1
+reinit_skip_due_next_guard = 1
+reinit_skip_due_current_guard = 1
+
+pass_all = 1
