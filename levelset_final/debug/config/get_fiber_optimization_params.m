@@ -52,6 +52,7 @@ function params = get_fiber_optimization_params(config_name)
     base.opt.enable_best_state_guard = true;     % 启用历史最优状态守护
     base.opt.best_state_rel_tol = 1e-6;          % 历史最优更新相对阈值
     base.opt.best_state_patience = 20;           % 连续无改进耐心步数（用于早停）
+    base.opt.theta_only_fuse_limit = 8;          % theta_only连续接管熔断阈值
     
     % 水平集参数
     base.levelset.delta_phi_factor = 0.8;       % 边界偏移因子
@@ -91,6 +92,26 @@ function params = get_fiber_optimization_params(config_name)
     base.smooth.eta = 0.10;                     % 角度平滑系数
     base.smooth.iterations = 2;                 % 平滑迭代次数
 
+    % 梯度链参数
+    base.gradient.chain_mode = 'legacy';        % legacy/shadow/exact
+    base.gradient.limiter_mode = 'hard';        % hard/soft_experiment
+    base.gradient.audit_support_mode = 'full';  % 审计口径：full/opt
+    base.gradient.shadow_topk = 32;             % shadow比较的top-k样本数
+    base.gradient.shadow_num_directional_checks = 4; % 方向导数审计向量数
+    base.gradient.shadow_fd_eps_factor = 1e-4;  % 有限差分步长系数（乘以h）
+    base.gradient.soft_limiter_beta = 20.0;     % soft limiter实验强度
+    base.gradient.theta_raw_grad_floor = 0.05;  % exact pullback中theta_raw链的最小可微梯度阈值
+    base.gradient.theta_raw_branch_cut_tol = 1e-6; % 审计时theta_raw分支切口不可微保护阈值
+
+    % 制造约束参数（优化态附加项，不影响评估态）
+    base.manufacturing.enable = true;
+    base.manufacturing.grad_norm_weight = 0.0;
+    base.manufacturing.curvature_weight = 0.0;
+    base.manufacturing.gap_overlap_weight = 0.0;
+    base.manufacturing.curvature_radius_min = 2.0;
+    base.manufacturing.gap_overlap_target = 1.0;
+    base.manufacturing.penalty_band_factor = 1.5;
+
     % 速度场参数
     base.velocity.enable_bias_removal = true;   % 是否执行形状项去偏
     base.velocity.bias_beta = 0.10;             % 最终速度场净平移抑制强度
@@ -122,16 +143,22 @@ function params = get_fiber_optimization_params(config_name)
     switch lower(config_name)
         case 'default'
             params = base;
+            params.gradient.chain_mode = 'legacy';
+            params.opt.acceptance_tol = 0.01;      % default放宽next-guard：允许最多1%相对上浮
+            params.opt.current_state_tol = 0.01;   % default放宽current-guard：允许最多1%相对上浮
+            params.opt.reinit_current_tol = 0.01;  % default放宽reinit current-guard：允许最多1%相对上浮
             
         case 'fast'
             % 快速模式（牺牲精度换速度）
             params = base;
+            params.gradient.chain_mode = 'legacy';
             params.opt.max_iter = 50;
             params.opt.delta_theta_max_deg = 0.8;   % 新灵敏度公式下，0.8度在柔度收益与稳定性之间最好
             params.opt.max_backtrack = 3;          % fast模式适度放宽回溯，减少坏步通过
-            params.opt.current_state_tol = 0;      % 已闭合接受状态后，fast模式也保持严格不恶化
+            params.opt.acceptance_tol = 0.01;      % 放宽next-guard：允许最多1%相对上浮
+            params.opt.current_state_tol = 0.01;   % 放宽current-guard：允许最多1%相对上浮
             params.opt.current_guard_start_iter = 1; % 从首轮起启用当前步门禁，阻止中前期坏步通过
-            params.opt.reinit_current_tol = 0;     % 重初始化保持严格不恶化当前步
+            params.opt.reinit_current_tol = 0.01;  % 放宽reinit current-guard：允许最多1%相对上浮
             params.opt.reinit_guard_start_iter = 1;
             params.opt.best_state_patience = 12;   % fast模式提前收敛，避免后段回升
             params.velocity.scale_quantile = 95;
@@ -147,6 +174,7 @@ function params = get_fiber_optimization_params(config_name)
         case 'precise'
             % 精确模式（更严格的收敛）
             params = base;
+            params.gradient.chain_mode = 'exact';
             params.opt.max_iter = 200;
             params.opt.tol = 1e-6;
             params.opt.best_state_patience = 40;
@@ -159,8 +187,12 @@ function params = get_fiber_optimization_params(config_name)
         case 'debug'
             % 调试模式（最大化诊断信息）
             params = base;
+            params.gradient.chain_mode = 'shadow';
             params.opt.max_iter = 20;
             params.opt.best_state_patience = 8;
+            params.opt.acceptance_tol = 0.01;
+            params.opt.current_state_tol = 0.01;
+            params.opt.reinit_current_tol = 0.01;
             params.levelset.transition_iter = 20;  % 修复：与max_iter保持一致
             params.debug.log_level = 'DEBUG';
             params.debug.log_interval = 1;
@@ -255,6 +287,11 @@ function params = apply_env_overrides(params)
     raw_mode = getenv('FIBER_HJ_RHS_MODE');
     if ~isempty(raw_mode)
         params.levelset.hj_rhs_mode = string(raw_mode);
+    end
+
+    raw_mode = getenv('FIBER_GRADIENT_CHAIN_MODE');
+    if ~isempty(raw_mode)
+        params.gradient.chain_mode = string(raw_mode);
     end
 end
 

@@ -1,0 +1,7 @@
+run_tag=rerun_default_20260331_170739
+final_compliance=8.867999187144e-07
+final_FCS=0.880244
+final_iter=29
+best_iter=9
+accepted_steps=28
+rejected_steps=0

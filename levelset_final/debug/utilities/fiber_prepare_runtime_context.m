@@ -58,7 +58,10 @@ function runtime_ctx = fiber_prepare_runtime_context(config_name, bootstrap_root
     runtime_ctx.enable_best_state_guard = logical(params.opt.enable_best_state_guard);
     runtime_ctx.best_state_rel_tol = params.opt.best_state_rel_tol;
     runtime_ctx.best_state_patience = params.opt.best_state_patience;
+    runtime_ctx.theta_only_fuse_limit = params.opt.theta_only_fuse_limit;
     runtime_ctx.velocity_opts = params.velocity;
+    runtime_ctx.gradient_opts = params.gradient;
+    runtime_ctx.manufacturing_opts = params.manufacturing;
 
     runtime_ctx.delta_phi = params.levelset.delta_phi_factor * params.grid.h;
     runtime_ctx.init_smooth_opts = struct( ...

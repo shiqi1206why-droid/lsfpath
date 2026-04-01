@@ -1,0 +1,565 @@
+=== CHECKLIST REMAINING TESTS START ===
+RUN_FAST_STRICT_EXACT
+=== 纤维路径优化（配置: fast） ===
+✅ 参数验证通过
+[ INFO] 正在加载拓扑优化结果...
+[ INFO] 拓扑网格尺寸: 80x50
+[ INFO] 开始执行边界偏移初始化...
+[ INFO] 正在清理材料掩膜...
+[ INFO] 正在构建基于边界偏移的符号距离场...
+[ INFO] 正在构建边界等距目标场...
+[ INFO]   边界等距目标场已构建（用于优化约束，Δφ_used=0.0160）
+  [调试] init_info.contour采样点数量: 347
+  [调试] X范围: [0.016, 1.584] m
+  [调试] Y范围: [0.016, 0.984] m
+  目标Δφ = 0.0160 m，抽样均值 = 0.0157 m (标准差 = 0.0010 m，样本数 = 347)
+  最大内部距离 = 0.2532 m
+  薄壁警告：13.72% 的材料单元到边界距离小于 Δφ
+正在执行强化初始化诊断...
+
+=== 初始化质量报告 ===
+目标Δφ = 0.0160 m，抽样均值 = 0.0157 m，最大误差 = 0.0026 m
+符号一致性: 80.00%
+薄壁单元比例: 13.72%
+平行路径平均间距误差: 42.70%
+====================================
+
+  中心位置梯度：dx=0.000000e+00，dy=0.000000e+00，|grad|=0.000000e+00
+  [能量自检] U'*F = 3.777978e-06, U'*K*U = 3.777978e-06, 差异 = 6.54e-18
+
+=== 优化诊断 ===
+初始柔度: 3.777978e-06
+施加载荷大小: -1.000000e+00
+迭代 1 - 节点灵敏度统计：最大=3.995769e-07，最小=-2.799805e-07，平均=3.655810e-09，source=exact
+  [灵敏度分位] p95=0.00e+00, p99=1.69e-07, max=4.00e-07, >p95=3.96%, >p99=1.01%
+  [诊断] 梯度模：最小=0.000e+00，最大=1.565e+01，平均=1.706e+00
+  [诊断] 偏离量：最小=0.000e+00，最大=4.141e-01，平均=1.629e-01
+  [诊断] node_sensitivity：最小=-1.09e+00，最大=1.56e+00，平均=1.42e-02，scale=2.57e-07
+  [诊断] 速度场max_band=1.60e+00
+  [诊断] 路径一致性：零线附近100.0%节点偏离<1网格（平均偏离=3.272e-04）
+  [raw路径] mean|turn|=3.278 deg, max|kappa|=1.279e+02, spacing err=42.70%, mean||grad|-1|=5.858e+00, near-zero outlier=54.61%
+  节点灵敏度统计：最大=1.555e+00，最小=-1.090e+00，平均=1.423e-02
+  速度场统计：最大=1.163e+00，最小=-1.602e+00，平均=1.411e-02
+  窄带速度：平均=-5.980e-04，加权平均=-5.356e-18，最大=1.602e+00，正向=55.0%，负向=45.0%
+  界面长度=3.316，质心=(0.762, 0.605)
+  预测最大角度变化 0.80 度
+  自适应时间步长: 8.713e-03 (CFL=1.000e-01, Δθ约束=8.713e-03)
+  梯度链(exact)：cos=0.873, norm_ratio=0.674, topk_sign=93.8%, sat=0.0%, deg=1.3%, active=8.3%
+  诊断：节点灵敏度非零比例 = 4.0%
+  诊断：θ 梯度接近零比例 = 1.1% (50/4417)
+  诊断：链式法非零贡献比例 = 37.0% (670/1812)
+  诊断：窄带覆盖=100.00%，窄带平均=-5.980e-04，加权平均=-5.356e-18
+  [步长回溯] 拒绝更新：最小dt=1.0e-06，C_trial=3.7867e-06，C_ref_next=3.7780e-06，C_current=3.7780e-06，guard_active=1，fail_next=1，fail_current=1
+  [重初始化] 本步拒绝更新，跳过固定频率重初始化
+
+=== 系统诊断 ===
+材料各向异性 E_L/E_T = 13.3
+网格: 80x50，单元尺寸 0.020x0.020
+初始接近零角度单元数: 11
+当 θ=0 时: cos=1.000，sin=0.000，-2cs=-0.000
+  角度变化：最大=180.00 度，平均=NaN 度
+  角度变化：最大=0.80 度，平均=NaN 度
+  角度变化：最大=0.80 度，平均=NaN 度
+  角度变化：最大=0.80 度，平均=NaN 度
+
+迭代 5: 柔度 = 3.7762e-06，FCS = 77.56%
+  角度统计：最小=0.0 度，最大=180.0 度，平均=89.1 度
+  接近 0 度单元: 45，接近 90 度单元: 308
+  角度变化：最大=0.80 度，平均=NaN 度
+  角度变化：最大=0.80 度，平均=NaN 度
+  角度变化：最大=0.80 度，平均=NaN 度
+  角度变化：最大=0.80 度，平均=NaN 度
+  [能量自检] U'*F = 3.774271e-06, U'*K*U = 3.774271e-06, 差异 = 1.33e-18
+  角度变化：最大=0.80 度，平均=NaN 度
+迭代 10 - 节点灵敏度统计：最大=4.292667e-07，最小=-2.812570e-07，平均=3.659288e-09，source=exact
+  [灵敏度分位] p95=0.00e+00, p99=1.68e-07, max=4.29e-07, >p95=3.96%, >p99=1.01%
+  [诊断] 梯度模：最小=0.000e+00，最大=1.565e+01，平均=1.706e+00
+  [诊断] 偏离量：最小=0.000e+00，最大=4.141e-01，平均=1.629e-01
+  [诊断] node_sensitivity：最小=-1.08e+00，最大=1.65e+00，平均=1.40e-02，scale=2.61e-07
+  [诊断] 速度场max_band=1.69e+00
+  [诊断] 路径一致性：零线附近100.0%节点偏离<1网格（平均偏离=3.272e-04）
+  [raw路径] mean|turn|=3.278 deg, max|kappa|=1.279e+02, spacing err=42.70%, mean||grad|-1|=5.858e+00, near-zero outlier=54.61%
+  节点灵敏度统计：最大=1.646e+00，最小=-1.079e+00，平均=1.403e-02
+  速度场统计：最大=1.151e+00，最小=-1.693e+00，平均=1.391e-02
+  窄带速度：平均=-5.886e-04，加权平均=2.143e-17，最大=1.693e+00，正向=54.4%，负向=45.6%
+  界面长度=3.316，质心=(0.762, 0.605)
+  预测最大角度变化 0.80 度
+  自适应时间步长: 8.249e-03 (CFL=1.000e-01, Δθ约束=8.249e-03)
+  梯度链(exact)：cos=0.872, norm_ratio=0.679, topk_sign=93.8%, sat=0.9%, deg=1.3%, active=8.3%
+  诊断：节点灵敏度非零比例 = 4.0%
+  诊断：θ 梯度接近零比例 = 1.2% (1175/97684)
+  诊断：链式法非零贡献比例 = 37.0% (6700/18120)
+  诊断：窄带覆盖=100.00%，窄带平均=-5.886e-04，加权平均=2.143e-17
+  [步长回溯] 拒绝更新：最小dt=1.0e-06，C_trial=3.7825e-06，C_ref_next=3.7739e-06，C_current=3.7743e-06，guard_active=1，fail_next=1，fail_current=1
+  [重初始化] 本步拒绝更新，跳过固定频率重初始化
+  水平集变化: 0.000e+00
+  [候选诊断] C_current=3.7743e-06, C_theta_only=3.7739e-06, C_hj=3.7825e-06, C_reinit=NaN, accept=theta_only
+  ✅ [验收] dev95=3.058e-03  mean_off=8.100e-04  FCS=77.4%
+
+迭代 10: 柔度 = 3.7739e-06，FCS = 77.43%
+  角度统计：最小=0.0 度，最大=180.0 度，平均=89.2 度
+  接近 0 度单元: 27，接近 90 度单元: 308
+  角度变化：最大=0.80 度，平均=NaN 度
+  角度变化：最大=0.80 度，平均=NaN 度
+  角度变化：最大=0.80 度，平均=NaN 度
+  角度变化：最大=0.80 度，平均=NaN 度
+  角度变化：最大=0.80 度，平均=NaN 度
+
+迭代 15: 柔度 = 3.7724e-06，FCS = 77.19%
+  角度统计：最小=0.0 度，最大=180.0 度，平均=89.2 度
+  接近 0 度单元: 27，接近 90 度单元: 308
+  角度变化：最大=0.80 度，平均=NaN 度
+  角度变化：最大=0.80 度，平均=NaN 度
+  角度变化：最大=0.80 度，平均=NaN 度
+  角度变化：最大=0.80 度，平均=NaN 度
+  [能量自检] U'*F = 3.771780e-06, U'*K*U = 3.771780e-06, 差异 = 2.54e-18
+  角度变化：最大=0.80 度，平均=NaN 度
+迭代 20 - 节点灵敏度统计：最大=4.445776e-07，最小=-2.985646e-07，平均=3.665020e-09，source=exact
+  [灵敏度分位] p95=0.00e+00, p99=1.68e-07, max=4.45e-07, >p95=3.96%, >p99=1.01%
+  [诊断] 梯度模：最小=0.000e+00，最大=1.565e+01，平均=1.706e+00
+  [诊断] 偏离量：最小=0.000e+00，最大=4.141e-01，平均=1.629e-01
+  [诊断] node_sensitivity：最小=-1.14e+00，最大=1.70e+00，平均=1.40e-02，scale=2.61e-07
+  [诊断] 速度场max_band=1.75e+00
+  [诊断] 路径一致性：零线附近100.0%节点偏离<1网格（平均偏离=3.272e-04）
+  [raw路径] mean|turn|=3.278 deg, max|kappa|=1.279e+02, spacing err=42.70%, mean||grad|-1|=5.858e+00, near-zero outlier=54.61%
+  节点灵敏度统计：最大=1.704e+00，最小=-1.144e+00，平均=1.404e-02
+  速度场统计：最大=1.147e+00，最小=-1.750e+00，平均=1.392e-02
+  窄带速度：平均=-5.920e-04，加权平均=2.678e-18，最大=1.750e+00，正向=55.0%，负向=45.0%
+  界面长度=3.316，质心=(0.762, 0.605)
+  预测最大角度变化 0.80 度
+  自适应时间步长: 7.979e-03 (CFL=1.000e-01, Δθ约束=7.979e-03)
+  梯度链(exact)：cos=0.873, norm_ratio=0.682, topk_sign=93.8%, sat=0.9%, deg=1.3%, active=8.3%
+  诊断：节点灵敏度非零比例 = 4.0%
+  诊断：θ 梯度接近零比例 = 1.2% (2425/201314)
+  诊断：链式法非零贡献比例 = 37.0% (13400/36240)
+  诊断：窄带覆盖=100.00%，窄带平均=-5.920e-04，加权平均=2.678e-18
+  [步长回溯] 拒绝更新：最小dt=1.0e-06，C_trial=3.7801e-06，C_ref_next=3.7717e-06，C_current=3.7718e-06，guard_active=1，fail_next=1，fail_current=1
+  [重初始化] 本步拒绝更新，跳过固定频率重初始化
+  水平集变化: 0.000e+00
+  [候选诊断] C_current=3.7718e-06, C_theta_only=3.7717e-06, C_hj=3.7801e-06, C_reinit=NaN, accept=theta_only
+  ✅ [验收] dev95=3.058e-03  mean_off=8.100e-04  FCS=77.1%
+
+迭代 20: 柔度 = 3.7717e-06，FCS = 77.08%
+  角度统计：最小=0.0 度，最大=180.0 度，平均=89.3 度
+  接近 0 度单元: 27，接近 90 度单元: 308
+  角度变化：最大=0.80 度，平均=NaN 度
+  角度变化：最大=0.80 度，平均=NaN 度
+  角度变化：最大=0.80 度，平均=NaN 度
+  角度变化：最大=0.80 度，平均=NaN 度
+  角度变化：最大=0.80 度，平均=NaN 度
+
+迭代 25: 柔度 = 3.7714e-06，FCS = 76.98%
+  角度统计：最小=0.0 度，最大=180.0 度，平均=89.3 度
+  接近 0 度单元: 27，接近 90 度单元: 308
+  角度变化：最大=0.80 度，平均=NaN 度
+  角度变化：最大=0.80 度，平均=NaN 度
+  角度变化：最大=0.80 度，平均=NaN 度
+  角度变化：最大=0.80 度，平均=NaN 度
+  [能量自检] U'*F = 3.771308e-06, U'*K*U = 3.771308e-06, 差异 = 2.03e-18
+  角度变化：最大=0.80 度，平均=NaN 度
+迭代 30 - 节点灵敏度统计：最大=4.466900e-07，最小=-3.077478e-07，平均=3.668629e-09，source=exact
+  [灵敏度分位] p95=0.00e+00, p99=1.69e-07, max=4.47e-07, >p95=3.96%, >p99=1.01%
+  [诊断] 梯度模：最小=0.000e+00，最大=1.565e+01，平均=1.706e+00
+  [诊断] 偏离量：最小=0.000e+00，最大=4.141e-01，平均=1.629e-01
+  [诊断] node_sensitivity：最小=-1.18e+00，最大=1.72e+00，平均=1.41e-02，scale=2.60e-07
+  [诊断] 速度场max_band=1.76e+00
+  [诊断] 路径一致性：零线附近100.0%节点偏离<1网格（平均偏离=3.272e-04）
+  [raw路径] mean|turn|=3.278 deg, max|kappa|=1.279e+02, spacing err=42.70%, mean||grad|-1|=5.858e+00, near-zero outlier=54.61%
+  节点灵敏度统计：最大=1.716e+00，最小=-1.182e+00，平均=1.409e-02
+  速度场统计：最大=1.147e+00，最小=-1.762e+00，平均=1.397e-02
+  窄带速度：平均=-5.952e-04，加权平均=-2.143e-17，最大=1.762e+00，正向=55.0%，负向=45.0%
+  界面长度=3.316，质心=(0.762, 0.605)
+  预测最大角度变化 0.80 度
+  自适应时间步长: 7.925e-03 (CFL=1.000e-01, Δθ约束=7.925e-03)
+  梯度链(exact)：cos=0.874, norm_ratio=0.684, topk_sign=93.8%, sat=0.9%, deg=1.3%, active=8.3%
+  诊断：节点灵敏度非零比例 = 4.0%
+  诊断：θ 梯度接近零比例 = 1.2% (3675/304944)
+  诊断：链式法非零贡献比例 = 37.0% (20100/54360)
+  诊断：窄带覆盖=100.00%，窄带平均=-5.952e-04，加权平均=-2.143e-17
+  [步长回溯] 拒绝更新：最小dt=1.0e-06，C_trial=3.7797e-06，C_ref_next=3.7713e-06，C_current=3.7713e-06，guard_active=1，fail_next=1，fail_current=1
+  [重初始化] 本步拒绝更新，跳过固定频率重初始化
+  水平集变化: 0.000e+00
+  [候选诊断] C_current=3.7713e-06, C_theta_only=3.7713e-06, C_hj=3.7797e-06, C_reinit=NaN, accept=theta_only
+  ✅ [验收] dev95=3.058e-03  mean_off=8.100e-04  FCS=77.0%
+
+迭代 30: 柔度 = 3.7713e-06，FCS = 76.95%
+  角度统计：最小=0.0 度，最大=180.0 度，平均=89.3 度
+  接近 0 度单元: 27，接近 90 度单元: 308
+  角度变化：最大=0.80 度，平均=NaN 度
+  角度变化：最大=0.00 度，平均=NaN 度
+  角度变化：最大=0.00 度，平均=NaN 度
+  角度变化：最大=0.00 度，平均=NaN 度
+  角度变化：最大=0.00 度，平均=NaN 度
+
+迭代 35: 柔度 = 3.7713e-06，FCS = 76.95%
+  角度统计：最小=0.0 度，最大=180.0 度，平均=89.3 度
+  接近 0 度单元: 27，接近 90 度单元: 308
+  角度变化：最大=0.00 度，平均=NaN 度
+  角度变化：最大=0.00 度，平均=NaN 度
+  角度变化：最大=0.00 度，平均=NaN 度
+  角度变化：最大=0.00 度，平均=NaN 度
+  [能量自检] U'*F = 3.771307e-06, U'*K*U = 3.771307e-06, 差异 = 7.78e-18
+  角度变化：最大=0.00 度，平均=NaN 度
+迭代 40 - 节点灵敏度统计：最大=4.466284e-07，最小=-3.082404e-07，平均=3.668873e-09，source=exact
+  [灵敏度分位] p95=0.00e+00, p99=1.69e-07, max=4.47e-07, >p95=3.96%, >p99=1.01%
+  [诊断] 梯度模：最小=0.000e+00，最大=1.565e+01，平均=1.706e+00
+  [诊断] 偏离量：最小=0.000e+00，最大=4.141e-01，平均=1.629e-01
+  [诊断] node_sensitivity：最小=-1.18e+00，最大=1.72e+00，平均=1.41e-02，scale=2.60e-07
+  [诊断] 速度场max_band=1.76e+00
+  [诊断] 路径一致性：零线附近100.0%节点偏离<1网格（平均偏离=3.272e-04）
+  [raw路径] mean|turn|=3.278 deg, max|kappa|=1.279e+02, spacing err=42.70%, mean||grad|-1|=5.858e+00, near-zero outlier=54.61%
+  节点灵敏度统计：最大=1.716e+00，最小=-1.184e+00，平均=1.409e-02
+  速度场统计：最大=1.147e+00，最小=-1.762e+00，平均=1.398e-02
+  窄带速度：平均=-5.954e-04，加权平均=1.071e-17，最大=1.762e+00，正向=55.0%，负向=45.0%
+  界面长度=3.316，质心=(0.762, 0.605)
+  预测最大角度变化 0.80 度
+  自适应时间步长: 7.924e-03 (CFL=1.000e-01, Δθ约束=7.924e-03)
+  梯度链(exact)：cos=0.874, norm_ratio=0.684, topk_sign=93.8%, sat=0.9%, deg=1.3%, active=8.3%
+  诊断：节点灵敏度非零比例 = 4.0%
+  诊断：θ 梯度接近零比例 = 1.2% (4925/408574)
+  诊断：链式法非零贡献比例 = 37.0% (26800/72480)
+  诊断：窄带覆盖=100.00%，窄带平均=-5.954e-04，加权平均=1.071e-17
+  [步长回溯] 拒绝更新：最小dt=1.0e-06，C_trial=3.7797e-06，C_ref_next=3.7713e-06，C_current=3.7713e-06，guard_active=1，fail_next=1，fail_current=1
+  [重初始化] 本步拒绝更新，跳过固定频率重初始化
+  水平集变化: 0.000e+00
+  [候选诊断] C_current=3.7713e-06, C_theta_only=3.7713e-06, C_hj=3.7797e-06, C_reinit=NaN, accept=hold
+  ✅ [验收] dev95=3.058e-03  mean_off=8.100e-04  FCS=77.0%
+
+迭代 40: 柔度 = 3.7713e-06，FCS = 76.95%
+  角度统计：最小=0.0 度，最大=180.0 度，平均=89.3 度
+  接近 0 度单元: 27，接近 90 度单元: 308
+  角度变化：最大=0.00 度，平均=NaN 度
+  角度变化：最大=0.00 度，平均=NaN 度
+[ INFO] 触发最优守护早停: 连续12步无改进(best_iter=30)
+[ INFO] \n优化完成!
+[ INFO] 最终柔度: 3.7713e-06
+[ INFO] 纤维连续性评分: 76.95%
+[ INFO] raw路径质量: mean|turn|=3.278 deg, max|kappa|=1.279e+02, spacing err=42.70%, mean||grad|-1|=5.858e+00, near-zero outlier=54.61%
+[ INFO] 早停原因: 连续12步无改进(best_iter=30)
+[ INFO] 步长接受/拒绝统计: 接受=0, 拒绝=41
+[ INFO] 梯度链模式: exact
+[ INFO] theta-only统计: 接受=30, 拒绝=11
+[ INFO] 拒绝原因统计: next_guard=41, current_guard=41
+[ INFO] 重初始化统计: 触发=0, 因拒绝跳过=41, 因目标守护回退=0, next_guard回退=0, current_guard回退=0
+[ INFO] 末轮原始状态相对历史最优差距: -0.0000%
+[ INFO] 柔度降低比例: 0.18% (初始=3.7780e-06, 最终=3.7713e-06)
+[ INFO] 结果已保存至输出结构体
+RUN_DEBUG_SHADOW
+{未定义与 'char' 类型的输入参数相对应的函数 'fiber_levelset'。
+
+出错 run_remaining_checklist_tests (第 52 行)
+results_debug = fiber_levelset('debug');
+
+出错 run (第 112 行)
+evalin('caller', strcat(scriptStem, ';'));
+} 
+[警告: 在路径中未找到 "\\wsl.localhost\ubuntu\home\again\projects\recover\debug"。] 
+[> 位置：rmpath>doRemoveFromPath (第 109 行)
+位置: rmpath (第 66 行)
+位置: ensure_project_on_path>@()rmpath(project_path) (第 10 行)
+位置: onCleanup/delete (第 25 行)] 
+[警告: 在路径中未找到 "\\wsl.localhost\ubuntu\home\again\projects\recover\debug\.cursor"。] 
+[> 位置：rmpath>doRemoveFromPath (第 109 行)
+位置: rmpath (第 66 行)
+位置: ensure_project_on_path>@()rmpath(project_path) (第 10 行)
+位置: onCleanup/delete (第 25 行)] 
+[警告: 在路径中未找到 "\\wsl.localhost\ubuntu\home\again\projects\recover\debug\.cursor\rules"。] 
+[> 位置：rmpath>doRemoveFromPath (第 109 行)
+位置: rmpath (第 66 行)
+位置: ensure_project_on_path>@()rmpath(project_path) (第 10 行)
+位置: onCleanup/delete (第 25 行)] 
+[警告: 在路径中未找到 "\\wsl.localhost\ubuntu\home\again\projects\recover\debug\.vscode"。] 
+[> 位置：rmpath>doRemoveFromPath (第 109 行)
+位置: rmpath (第 66 行)
+位置: ensure_project_on_path>@()rmpath(project_path) (第 10 行)
+位置: onCleanup/delete (第 25 行)] 
+[警告: 在路径中未找到 "\\wsl.localhost\ubuntu\home\again\projects\recover\debug\baseline_artifacts"。] 
+[> 位置：rmpath>doRemoveFromPath (第 109 行)
+位置: rmpath (第 66 行)
+位置: ensure_project_on_path>@()rmpath(project_path) (第 10 行)
+位置: onCleanup/delete (第 25 行)] 
+[警告: 在路径中未找到 "\\wsl.localhost\ubuntu\home\again\projects\recover\debug\baseline_artifacts\default_run_20260331_162521"。] 
+[> 位置：rmpath>doRemoveFromPath (第 109 行)
+位置: rmpath (第 66 行)
+位置: ensure_project_on_path>@()rmpath(project_path) (第 10 行)
+位置: onCleanup/delete (第 25 行)] 
+[警告: 在路径中未找到 "\\wsl.localhost\ubuntu\home\again\projects\recover\debug\checkpoints"。] 
+[> 位置：rmpath>doRemoveFromPath (第 109 行)
+位置: rmpath (第 66 行)
+位置: ensure_project_on_path>@()rmpath(project_path) (第 10 行)
+位置: onCleanup/delete (第 25 行)] 
+[警告: 在路径中未找到 "\\wsl.localhost\ubuntu\home\again\projects\recover\debug\config"。] 
+[> 位置：rmpath>doRemoveFromPath (第 109 行)
+位置: rmpath (第 66 行)
+位置: ensure_project_on_path>@()rmpath(project_path) (第 10 行)
+位置: onCleanup/delete (第 25 行)] 
+[警告: 在路径中未找到 "\\wsl.localhost\ubuntu\home\again\projects\recover\debug\core_computation"。] 
+[> 位置：rmpath>doRemoveFromPath (第 109 行)
+位置: rmpath (第 66 行)
+位置: ensure_project_on_path>@()rmpath(project_path) (第 10 行)
+位置: onCleanup/delete (第 25 行)] 
+[警告: 在路径中未找到 "\\wsl.localhost\ubuntu\home\again\projects\recover\debug\initialization"。] 
+[> 位置：rmpath>doRemoveFromPath (第 109 行)
+位置: rmpath (第 66 行)
+位置: ensure_project_on_path>@()rmpath(project_path) (第 10 行)
+位置: onCleanup/delete (第 25 行)] 
+[警告: 在路径中未找到 "\\wsl.localhost\ubuntu\home\again\projects\recover\debug\level_set_evolution"。] 
+[> 位置：rmpath>doRemoveFromPath (第 109 行)
+位置: rmpath (第 66 行)
+位置: ensure_project_on_path>@()rmpath(project_path) (第 10 行)
+位置: onCleanup/delete (第 25 行)] 
+[警告: 在路径中未找到 "\\wsl.localhost\ubuntu\home\again\projects\recover\debug\postprocess"。] 
+[> 位置：rmpath>doRemoveFromPath (第 109 行)
+位置: rmpath (第 66 行)
+位置: ensure_project_on_path>@()rmpath(project_path) (第 10 行)
+位置: onCleanup/delete (第 25 行)] 
+[警告: 在路径中未找到 "\\wsl.localhost\ubuntu\home\again\projects\recover\debug\refactor_artifacts"。] 
+[> 位置：rmpath>doRemoveFromPath (第 109 行)
+位置: rmpath (第 66 行)
+位置: ensure_project_on_path>@()rmpath(project_path) (第 10 行)
+位置: onCleanup/delete (第 25 行)] 
+[警告: 在路径中未找到 "\\wsl.localhost\ubuntu\home\again\projects\recover\debug\refactor_artifacts\checklist_remaining_20260401_132415"。] 
+[> 位置：rmpath>doRemoveFromPath (第 109 行)
+位置: rmpath (第 66 行)
+位置: ensure_project_on_path>@()rmpath(project_path) (第 10 行)
+位置: onCleanup/delete (第 25 行)] 
+[警告: 在路径中未找到
+"\\wsl.localhost\ubuntu\home\again\projects\recover\debug\refactor_artifacts\checklist_remaining_quick_20260401_125315"。] 
+[> 位置：rmpath>doRemoveFromPath (第 109 行)
+位置: rmpath (第 66 行)
+位置: ensure_project_on_path>@()rmpath(project_path) (第 10 行)
+位置: onCleanup/delete (第 25 行)] 
+[警告: 在路径中未找到
+"\\wsl.localhost\ubuntu\home\again\projects\recover\debug\refactor_artifacts\checklist_remaining_quick_20260401_125542"。] 
+[> 位置：rmpath>doRemoveFromPath (第 109 行)
+位置: rmpath (第 66 行)
+位置: ensure_project_on_path>@()rmpath(project_path) (第 10 行)
+位置: onCleanup/delete (第 25 行)] 
+[警告: 在路径中未找到 "\\wsl.localhost\ubuntu\home\again\projects\recover\debug\refactor_artifacts\fast_lsf_20260331_155043"。] 
+[> 位置：rmpath>doRemoveFromPath (第 109 行)
+位置: rmpath (第 66 行)
+位置: ensure_project_on_path>@()rmpath(project_path) (第 10 行)
+位置: onCleanup/delete (第 25 行)] 
+[警告: 在路径中未找到 "\\wsl.localhost\ubuntu\home\again\projects\recover\debug\refactor_artifacts\rerun_default_20260331_161821"。] 
+[> 位置：rmpath>doRemoveFromPath (第 109 行)
+位置: rmpath (第 66 行)
+位置: ensure_project_on_path>@()rmpath(project_path) (第 10 行)
+位置: onCleanup/delete (第 25 行)] 
+[警告: 在路径中未找到 "\\wsl.localhost\ubuntu\home\again\projects\recover\debug\refactor_artifacts\rerun_default_20260331_162233"。] 
+[> 位置：rmpath>doRemoveFromPath (第 109 行)
+位置: rmpath (第 66 行)
+位置: ensure_project_on_path>@()rmpath(project_path) (第 10 行)
+位置: onCleanup/delete (第 25 行)] 
+[警告: 在路径中未找到 "\\wsl.localhost\ubuntu\home\again\projects\recover\debug\refactor_artifacts\rerun_default_20260331_165936"。] 
+[> 位置：rmpath>doRemoveFromPath (第 109 行)
+位置: rmpath (第 66 行)
+位置: ensure_project_on_path>@()rmpath(project_path) (第 10 行)
+位置: onCleanup/delete (第 25 行)] 
+[警告: 在路径中未找到 "\\wsl.localhost\ubuntu\home\again\projects\recover\debug\refactor_artifacts\rerun_default_20260331_170739"。] 
+[> 位置：rmpath>doRemoveFromPath (第 109 行)
+位置: rmpath (第 66 行)
+位置: ensure_project_on_path>@()rmpath(project_path) (第 10 行)
+位置: onCleanup/delete (第 25 行)] 
+[警告: 在路径中未找到 "\\wsl.localhost\ubuntu\home\again\projects\recover\debug\refactor_artifacts\rerun_default_legacy_20260331_181809"。] 
+[> 位置：rmpath>doRemoveFromPath (第 109 行)
+位置: rmpath (第 66 行)
+位置: ensure_project_on_path>@()rmpath(project_path) (第 10 行)
+位置: onCleanup/delete (第 25 行)] 
+[警告: 在路径中未找到
+"\\wsl.localhost\ubuntu\home\again\projects\recover\debug\refactor_artifacts\rerun_default_precise_compare_20260331_234243"。] 
+[> 位置：rmpath>doRemoveFromPath (第 109 行)
+位置: rmpath (第 66 行)
+位置: ensure_project_on_path>@()rmpath(project_path) (第 10 行)
+位置: onCleanup/delete (第 25 行)] 
+[警告: 在路径中未找到
+"\\wsl.localhost\ubuntu\home\again\projects\recover\debug\refactor_artifacts\rerun_default_precise_compare_20260331_235129"。] 
+[> 位置：rmpath>doRemoveFromPath (第 109 行)
+位置: rmpath (第 66 行)
+位置: ensure_project_on_path>@()rmpath(project_path) (第 10 行)
+位置: onCleanup/delete (第 25 行)] 
+[警告: 在路径中未找到 "\\wsl.localhost\ubuntu\home\again\projects\recover\debug\refactor_artifacts\rerun_fast_20260331_161126"。] 
+[> 位置：rmpath>doRemoveFromPath (第 109 行)
+位置: rmpath (第 66 行)
+位置: ensure_project_on_path>@()rmpath(project_path) (第 10 行)
+位置: onCleanup/delete (第 25 行)] 
+[警告: 在路径中未找到 "\\wsl.localhost\ubuntu\home\again\projects\recover\debug\refactor_artifacts\rerun_fast_20260331_163251"。] 
+[> 位置：rmpath>doRemoveFromPath (第 109 行)
+位置: rmpath (第 66 行)
+位置: ensure_project_on_path>@()rmpath(project_path) (第 10 行)
+位置: onCleanup/delete (第 25 行)] 
+[警告: 在路径中未找到 "\\wsl.localhost\ubuntu\home\again\projects\recover\debug\refactor_artifacts\rerun_fast_20260331_165108"。] 
+[> 位置：rmpath>doRemoveFromPath (第 109 行)
+位置: rmpath (第 66 行)
+位置: ensure_project_on_path>@()rmpath(project_path) (第 10 行)
+位置: onCleanup/delete (第 25 行)] 
+[警告: 在路径中未找到 "\\wsl.localhost\ubuntu\home\again\projects\recover\debug\refactor_artifacts\rerun_fast_relaxed_20260331_163607"。] 
+[> 位置：rmpath>doRemoveFromPath (第 109 行)
+位置: rmpath (第 66 行)
+位置: ensure_project_on_path>@()rmpath(project_path) (第 10 行)
+位置: onCleanup/delete (第 25 行)] 
+[警告: 在路径中未找到 "\\wsl.localhost\ubuntu\home\again\projects\recover\debug\refactor_artifacts\rerun_fast_relaxed_20260331_164355"。] 
+[> 位置：rmpath>doRemoveFromPath (第 109 行)
+位置: rmpath (第 66 行)
+位置: ensure_project_on_path>@()rmpath(project_path) (第 10 行)
+位置: onCleanup/delete (第 25 行)] 
+[警告: 在路径中未找到 "\\wsl.localhost\ubuntu\home\again\projects\recover\debug\refactor_artifacts\rerun_fast_relaxed_20260331_165312"。] 
+[> 位置：rmpath>doRemoveFromPath (第 109 行)
+位置: rmpath (第 66 行)
+位置: ensure_project_on_path>@()rmpath(project_path) (第 10 行)
+位置: onCleanup/delete (第 25 行)] 
+[警告: 在路径中未找到 "\\wsl.localhost\ubuntu\home\again\projects\recover\debug\refactor_artifacts\rerun_precise_full200_20260331_173747"。] 
+[> 位置：rmpath>doRemoveFromPath (第 109 行)
+位置: rmpath (第 66 行)
+位置: ensure_project_on_path>@()rmpath(project_path) (第 10 行)
+位置: onCleanup/delete (第 25 行)] 
+[警告: 在路径中未找到 "\\wsl.localhost\ubuntu\home\again\projects\recover\debug\tests"。] 
+[> 位置：rmpath>doRemoveFromPath (第 109 行)
+位置: rmpath (第 66 行)
+位置: ensure_project_on_path>@()rmpath(project_path) (第 10 行)
+位置: onCleanup/delete (第 25 行)] 
+[警告: 在路径中未找到 "\\wsl.localhost\ubuntu\home\again\projects\recover\debug\tests\baseline"。] 
+[> 位置：rmpath>doRemoveFromPath (第 109 行)
+位置: rmpath (第 66 行)
+位置: ensure_project_on_path>@()rmpath(project_path) (第 10 行)
+位置: onCleanup/delete (第 25 行)] 
+[警告: 在路径中未找到 "\\wsl.localhost\ubuntu\home\again\projects\recover\debug\tests\comparison"。] 
+[> 位置：rmpath>doRemoveFromPath (第 109 行)
+位置: rmpath (第 66 行)
+位置: ensure_project_on_path>@()rmpath(project_path) (第 10 行)
+位置: onCleanup/delete (第 25 行)] 
+[警告: 在路径中未找到 "\\wsl.localhost\ubuntu\home\again\projects\recover\debug\tests\formula_audit"。] 
+[> 位置：rmpath>doRemoveFromPath (第 109 行)
+位置: rmpath (第 66 行)
+位置: ensure_project_on_path>@()rmpath(project_path) (第 10 行)
+位置: onCleanup/delete (第 25 行)] 
+[警告: 在路径中未找到 "\\wsl.localhost\ubuntu\home\again\projects\recover\debug\tests\step_checks"。] 
+[> 位置：rmpath>doRemoveFromPath (第 109 行)
+位置: rmpath (第 66 行)
+位置: ensure_project_on_path>@()rmpath(project_path) (第 10 行)
+位置: onCleanup/delete (第 25 行)] 
+[警告: 在路径中未找到 "\\wsl.localhost\ubuntu\home\again\projects\recover\debug\third_party"。] 
+[> 位置：rmpath>doRemoveFromPath (第 109 行)
+位置: rmpath (第 66 行)
+位置: ensure_project_on_path>@()rmpath(project_path) (第 10 行)
+位置: onCleanup/delete (第 25 行)] 
+[警告: 在路径中未找到 "\\wsl.localhost\ubuntu\home\again\projects\recover\debug\third_party\mstamy2-PyPDF2-4480180"。] 
+[> 位置：rmpath>doRemoveFromPath (第 109 行)
+位置: rmpath (第 66 行)
+位置: ensure_project_on_path>@()rmpath(project_path) (第 10 行)
+位置: onCleanup/delete (第 25 行)] 
+[警告: 在路径中未找到 "\\wsl.localhost\ubuntu\home\again\projects\recover\debug\third_party\mstamy2-PyPDF2-4480180\PyPDF2"。] 
+[> 位置：rmpath>doRemoveFromPath (第 109 行)
+位置: rmpath (第 66 行)
+位置: ensure_project_on_path>@()rmpath(project_path) (第 10 行)
+位置: onCleanup/delete (第 25 行)] 
+[警告: 在路径中未找到 "\\wsl.localhost\ubuntu\home\again\projects\recover\debug\third_party\mstamy2-PyPDF2-4480180\PyPDF2\__pycache__"。] 
+[> 位置：rmpath>doRemoveFromPath (第 109 行)
+位置: rmpath (第 66 行)
+位置: ensure_project_on_path>@()rmpath(project_path) (第 10 行)
+位置: onCleanup/delete (第 25 行)] 
+[警告: 在路径中未找到 "\\wsl.localhost\ubuntu\home\again\projects\recover\debug\third_party\pypdf-6.1.3"。] 
+[> 位置：rmpath>doRemoveFromPath (第 109 行)
+位置: rmpath (第 66 行)
+位置: ensure_project_on_path>@()rmpath(project_path) (第 10 行)
+位置: onCleanup/delete (第 25 行)] 
+[警告: 在路径中未找到 "\\wsl.localhost\ubuntu\home\again\projects\recover\debug\third_party\pypdf-6.1.3\pypdf"。] 
+[> 位置：rmpath>doRemoveFromPath (第 109 行)
+位置: rmpath (第 66 行)
+位置: ensure_project_on_path>@()rmpath(project_path) (第 10 行)
+位置: onCleanup/delete (第 25 行)] 
+[警告: 在路径中未找到 "\\wsl.localhost\ubuntu\home\again\projects\recover\debug\third_party\pypdf-6.1.3\pypdf\__pycache__"。] 
+[> 位置：rmpath>doRemoveFromPath (第 109 行)
+位置: rmpath (第 66 行)
+位置: ensure_project_on_path>@()rmpath(project_path) (第 10 行)
+位置: onCleanup/delete (第 25 行)] 
+[警告: 在路径中未找到 "\\wsl.localhost\ubuntu\home\again\projects\recover\debug\third_party\pypdf-6.1.3\pypdf\_codecs"。] 
+[> 位置：rmpath>doRemoveFromPath (第 109 行)
+位置: rmpath (第 66 行)
+位置: ensure_project_on_path>@()rmpath(project_path) (第 10 行)
+位置: onCleanup/delete (第 25 行)] 
+[警告: 在路径中未找到 "\\wsl.localhost\ubuntu\home\again\projects\recover\debug\third_party\pypdf-6.1.3\pypdf\_codecs\__pycache__"。] 
+[> 位置：rmpath>doRemoveFromPath (第 109 行)
+位置: rmpath (第 66 行)
+位置: ensure_project_on_path>@()rmpath(project_path) (第 10 行)
+位置: onCleanup/delete (第 25 行)] 
+[警告: 在路径中未找到 "\\wsl.localhost\ubuntu\home\again\projects\recover\debug\third_party\pypdf-6.1.3\pypdf\_crypt_providers"。] 
+[> 位置：rmpath>doRemoveFromPath (第 109 行)
+位置: rmpath (第 66 行)
+位置: ensure_project_on_path>@()rmpath(project_path) (第 10 行)
+位置: onCleanup/delete (第 25 行)] 
+[警告: 在路径中未找到 "\\wsl.localhost\ubuntu\home\again\projects\recover\debug\third_party\pypdf-6.1.3\pypdf\_crypt_providers\__pycache__"。] 
+[> 位置：rmpath>doRemoveFromPath (第 109 行)
+位置: rmpath (第 66 行)
+位置: ensure_project_on_path>@()rmpath(project_path) (第 10 行)
+位置: onCleanup/delete (第 25 行)] 
+[警告: 在路径中未找到 "\\wsl.localhost\ubuntu\home\again\projects\recover\debug\third_party\pypdf-6.1.3\pypdf\_text_extraction"。] 
+[> 位置：rmpath>doRemoveFromPath (第 109 行)
+位置: rmpath (第 66 行)
+位置: ensure_project_on_path>@()rmpath(project_path) (第 10 行)
+位置: onCleanup/delete (第 25 行)] 
+[警告: 在路径中未找到 "\\wsl.localhost\ubuntu\home\again\projects\recover\debug\third_party\pypdf-6.1.3\pypdf\_text_extraction\__pycache__"。] 
+[> 位置：rmpath>doRemoveFromPath (第 109 行)
+位置: rmpath (第 66 行)
+位置: ensure_project_on_path>@()rmpath(project_path) (第 10 行)
+位置: onCleanup/delete (第 25 行)] 
+[警告: 在路径中未找到 "\\wsl.localhost\ubuntu\home\again\projects\recover\debug\third_party\pypdf-6.1.3\pypdf\_text_extraction\_layout_mode"。] 
+[> 位置：rmpath>doRemoveFromPath (第 109 行)
+位置: rmpath (第 66 行)
+位置: ensure_project_on_path>@()rmpath(project_path) (第 10 行)
+位置: onCleanup/delete (第 25 行)] 
+[警告: 在路径中未找到
+"\\wsl.localhost\ubuntu\home\again\projects\recover\debug\third_party\pypdf-6.1.3\pypdf\_text_extraction\_layout_mode\__pycache__"。] 
+[> 位置：rmpath>doRemoveFromPath (第 109 行)
+位置: rmpath (第 66 行)
+位置: ensure_project_on_path>@()rmpath(project_path) (第 10 行)
+位置: onCleanup/delete (第 25 行)] 
+[警告: 在路径中未找到 "\\wsl.localhost\ubuntu\home\again\projects\recover\debug\third_party\pypdf-6.1.3\pypdf\annotations"。] 
+[> 位置：rmpath>doRemoveFromPath (第 109 行)
+位置: rmpath (第 66 行)
+位置: ensure_project_on_path>@()rmpath(project_path) (第 10 行)
+位置: onCleanup/delete (第 25 行)] 
+[警告: 在路径中未找到 "\\wsl.localhost\ubuntu\home\again\projects\recover\debug\third_party\pypdf-6.1.3\pypdf\generic"。] 
+[> 位置：rmpath>doRemoveFromPath (第 109 行)
+位置: rmpath (第 66 行)
+位置: ensure_project_on_path>@()rmpath(project_path) (第 10 行)
+位置: onCleanup/delete (第 25 行)] 
+[警告: 在路径中未找到 "\\wsl.localhost\ubuntu\home\again\projects\recover\debug\third_party\pypdf-6.1.3\pypdf\generic\__pycache__"。] 
+[> 位置：rmpath>doRemoveFromPath (第 109 行)
+位置: rmpath (第 66 行)
+位置: ensure_project_on_path>@()rmpath(project_path) (第 10 行)
+位置: onCleanup/delete (第 25 行)] 
+[警告: 在路径中未找到 "\\wsl.localhost\ubuntu\home\again\projects\recover\debug\third_party\pypdf-6.1.3\tests"。] 
+[> 位置：rmpath>doRemoveFromPath (第 109 行)
+位置: rmpath (第 66 行)
+位置: ensure_project_on_path>@()rmpath(project_path) (第 10 行)
+位置: onCleanup/delete (第 25 行)] 
+[警告: 在路径中未找到 "\\wsl.localhost\ubuntu\home\again\projects\recover\debug\third_party\pypdf-6.1.3\tests\generic"。] 
+[> 位置：rmpath>doRemoveFromPath (第 109 行)
+位置: rmpath (第 66 行)
+位置: ensure_project_on_path>@()rmpath(project_path) (第 10 行)
+位置: onCleanup/delete (第 25 行)] 
+[警告: 在路径中未找到 "\\wsl.localhost\ubuntu\home\again\projects\recover\debug\third_party\pypdf-6.1.3\tests\scripts"。] 
+[> 位置：rmpath>doRemoveFromPath (第 109 行)
+位置: rmpath (第 66 行)
+位置: ensure_project_on_path>@()rmpath(project_path) (第 10 行)
+位置: onCleanup/delete (第 25 行)] 
+[警告: 在路径中未找到 "\\wsl.localhost\ubuntu\home\again\projects\recover\debug\third_party\pypdf-6.1.3\tests\scripts\data"。] 
+[> 位置：rmpath>doRemoveFromPath (第 109 行)
+位置: rmpath (第 66 行)
+位置: ensure_project_on_path>@()rmpath(project_path) (第 10 行)
+位置: onCleanup/delete (第 25 行)] 
+[警告: 在路径中未找到 "\\wsl.localhost\ubuntu\home\again\projects\recover\debug\utilities"。] 
+[> 位置：rmpath>doRemoveFromPath (第 109 行)
+位置: rmpath (第 66 行)
+位置: ensure_project_on_path>@()rmpath(project_path) (第 10 行)
+位置: onCleanup/delete (第 25 行)] 
+[警告: 在路径中未找到 "\\wsl.localhost\ubuntu\home\again\projects\recover\debug\visualization"。] 
+[> 位置：rmpath>doRemoveFromPath (第 109 行)
+位置: rmpath (第 66 行)
+位置: ensure_project_on_path>@()rmpath(project_path) (第 10 行)
+位置: onCleanup/delete (第 25 行)] 
+[警告: 在路径中未找到 "\\wsl.localhost\ubuntu\home\again\projects\recover\debug\visualization_artifacts"。] 
+[> 位置：rmpath>doRemoveFromPath (第 109 行)
+位置: rmpath (第 66 行)
+位置: ensure_project_on_path>@()rmpath(project_path) (第 10 行)
+位置: onCleanup/delete (第 25 行)] 

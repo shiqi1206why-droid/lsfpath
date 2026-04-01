@@ -1,0 +1,7 @@
+=== exact HJ descent smoke ===
+C_current = 3.777978e-06
+C_hj      = 3.761182e-06
+delta     = -1.679682e-08
+dt        = 8.713035e-03, dt_cfl = 1.000000e-01, dt_angle = 8.713035e-03, max_band = 1.602499e+00
+sens_scale = 2.568922e-07
+PASS: exact HJ descent smoke.

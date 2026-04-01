@@ -1,0 +1,6 @@
+final_compliance=9.022712343230e-07
+final_FCS=0.836166
+final_iter=20
+best_iter=1
+rollback_to_best=0
+early_stop_triggered=1

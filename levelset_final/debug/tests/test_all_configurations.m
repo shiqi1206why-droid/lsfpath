@@ -32,6 +32,8 @@ try
     fprintf('     - boundary_reconstruction: %s\n', params_default.init.boundary_reconstruction);
     fprintf('     - advection_order/time_integrator: %d / %s\n', ...
         params_default.levelset.advection_order, params_default.levelset.time_integrator);
+    fprintf('     - gradient chain/limiter: %s / %s\n', ...
+        params_default.gradient.chain_mode, params_default.gradient.limiter_mode);
 catch ME
     fprintf('  ❌ 失败: %s\n', ME.message);
 end

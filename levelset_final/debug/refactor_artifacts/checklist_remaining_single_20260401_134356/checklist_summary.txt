@@ -1,0 +1,15 @@
+Checklist summary (step7 modified: run precise once)
+run_dir: /home/again/projects/recover/debug/refactor_artifacts/checklist_remaining_single_20260401_134356
+
+Step1 strict fast accepted_steps>0: FAIL
+  fast.accepted_steps=0, fast.rejected_steps=41
+Step2 cosine_similarity median>0.7: PASS
+  cosine_median=0.871637, cosine_mean=0.871744
+Step3 TestA exact direct phi descent: PASS (separate run)
+Step4 TestB HJ descent smoke: PASS (separate run); strict fast accepted=0 => FAIL
+Step5 default first50 monotonic descent: PASS
+  n50=50, up_count=0, max_up_delta=0.000e+00
+Step6 rollback count <3 proxy(rollback_to_best boolean): PASS
+  rollback_to_best=0, best_iter=78, final_iter=82
+Step7 (modified) precise run once: PASS
+  precise_final_iter=99, precise_final_C=3.869509e-06, chain_mode=shadow

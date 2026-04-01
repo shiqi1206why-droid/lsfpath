@@ -1,0 +1,14 @@
+run_tag=rerun_precise_full200_20260331_173747
+config=precise(forced_full200)
+final_compliance=8.819404333684e-07
+final_FCS=0.892459
+final_iter=201
+executed_iter=201
+history_len=201
+best_iter=1
+accepted_steps=0
+rejected_steps=200
+early_stop_triggered=0
+rollback_to_best=0
+raw_final_compliance=8.819404333684e-07
+final_to_best_gap_percent=0.000000

@@ -1,4 +1,4 @@
-function theta_e = compute_fiber_angles_from_lsf(lsf, dx, dy, material_mask_core)
+function [theta_e, angle_cache] = compute_fiber_angles_from_lsf(lsf, dx, dy, material_mask_core)
     % 根据水平集梯度计算局部纤维方向
 
     global DIAG;
@@ -6,6 +6,11 @@ function theta_e = compute_fiber_angles_from_lsf(lsf, dx, dy, material_mask_core
     nely = nely_plus - 2;
     nelx = nelx_plus - 2;
     theta_e = nan(nely, nelx);
+    dphi_dx_cache = nan(nely, nelx);
+    dphi_dy_cache = nan(nely, nelx);
+    degenerate_grad_mask = false(nely, nelx);
+    dN_dx = [-0.5 / dx, 0.5 / dx, 0.5 / dx, -0.5 / dx];
+    dN_dy = [-0.5 / dy, -0.5 / dy, 0.5 / dy, 0.5 / dy];
 
     if nargin < 4 || isempty(material_mask_core)
         material_mask_core = true(nely, nelx);
@@ -16,13 +21,21 @@ function theta_e = compute_fiber_angles_from_lsf(lsf, dx, dy, material_mask_core
         material_mask_core = logical(material_mask_core);
     end
 
-    for i = 2:nely_plus-1
-        for j = 2:nelx_plus-1
-            if ~material_mask_core(i-1, j-1)
+    for ely = 1:nely
+        for elx = 1:nelx
+            if ~material_mask_core(ely, elx)
                 continue;
             end
-            dphi_dx = (lsf(i, j+1) - lsf(i, j-1)) / (2*dx);
-            dphi_dy = (lsf(i+1, j) - lsf(i-1, j)) / (2*dy);
+            base_i = ely + 1;
+            base_j = elx + 1;
+            phi_nodes = [lsf(base_i, base_j), ...
+                         lsf(base_i + 1, base_j), ...
+                         lsf(base_i + 1, base_j + 1), ...
+                         lsf(base_i, base_j + 1)];
+            dphi_dx = sum(dN_dx .* phi_nodes);
+            dphi_dy = sum(dN_dy .* phi_nodes);
+            dphi_dx_cache(ely, elx) = dphi_dx;
+            dphi_dy_cache(ely, elx) = dphi_dy;
 
             if ~isempty(DIAG)
                 DIAG.theta_grad_samples = DIAG.theta_grad_samples + 1;
@@ -36,13 +49,22 @@ function theta_e = compute_fiber_angles_from_lsf(lsf, dx, dy, material_mask_core
             % 检测非有限值或过小梯度，赋默认角度
             if ~isfinite(dphi_dx) || ~isfinite(dphi_dy) || ...
                (dphi_dx*dphi_dx + dphi_dy*dphi_dy) < 1e-12
-                theta_e(i-1, j-1) = 0;  % 材料域内退化梯度时保底为0度
+                degenerate_grad_mask(ely, elx) = true;
+                theta_e(ely, elx) = 0;  % 材料域内退化梯度时保底为0度
             else
-                theta_e(i-1, j-1) = pi/2 + atan2(dphi_dy, dphi_dx);
+                theta_e(ely, elx) = pi/2 + atan2(dphi_dy, dphi_dx);
             end
 
-            theta_e(i-1, j-1) = mod(theta_e(i-1, j-1), pi);
+            theta_e(ely, elx) = mod(theta_e(ely, elx), pi);
         end
     end
-end
 
+    angle_cache = struct();
+    angle_cache.dphi_dx = dphi_dx_cache;
+    angle_cache.dphi_dy = dphi_dy_cache;
+    angle_cache.degenerate_grad_mask = degenerate_grad_mask;
+    angle_cache.material_mask_core = material_mask_core;
+    angle_cache.dx = dx;
+    angle_cache.dy = dy;
+    angle_cache.stencil = 'q4_bilinear';
+end

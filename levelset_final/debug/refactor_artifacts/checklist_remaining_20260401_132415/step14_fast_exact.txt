@@ -1,0 +1,8 @@
+step1_pass=0
+step4_pass=0
+accepted_steps=0
+rejected_steps=41
+final_iter=42
+executed_iter=42
+chain_mode=exact
+final_compliance=3.771307083957e-06

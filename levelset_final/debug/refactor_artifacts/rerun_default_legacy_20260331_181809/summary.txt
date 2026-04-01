@@ -1,0 +1,10 @@
+run_tag=rerun_default_legacy_20260331_181809
+gradient_chain_mode=legacy
+final_compliance=8.525891868646e-07
+final_FCS=0.876792
+final_iter=39
+best_iter=19
+accepted_steps=38
+rejected_steps=0
+raw_final_compliance=8.758088859602e-07
+final_to_best_gap_percent=2.723433

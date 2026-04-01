@@ -33,7 +33,7 @@ This README is meant as the primary handoff document for the next agent. It is m
 
 ### Current refactor status
 
-The recent refactor did **not** change numerical behavior.
+The current mainline no longer treats the old local `dC/dphi` approximation as the only optimization path.
 
 - `fiber_levelset(config_name)` is now only a wrapper entry.
 - `run_fiber_levelset_pipeline` is now a 4-stage orchestrator:
@@ -57,6 +57,40 @@ The recent refactor did **not** change numerical behavior.
   - 灵敏度聚合链式法则去冗余（在不改变数学表达和数值防护阈值前提下）
   - 迭代日志触发点包装化（仅搬迁输出，不改文案/时机）
   - 后处理拆分为职责函数：`extract_path_contours` / `smooth_path_candidates` / `select_best_smooth_path` / `write_path_to_file`
+- 新的 `theta` 过渡链已统一为共享前向核心：
+  - `phi -> theta_raw -> z_smooth -> theta_target -> theta_next`
+  - `advance_theta_state` 与所有候选评估现在共享同一份前向离散实现
+- 梯度链现支持三种模式：
+  - `params.gradient.chain_mode = legacy | shadow | exact`
+  - 当前配置默认：`default=legacy`、`fast=legacy`、`precise=exact`、`debug=shadow`
+  - `shadow` 会并行计算 legacy / exact 并记录比较诊断，但仍用 legacy 驱动优化
+- `differentiate_theta_transition_exact` 已加入主线：
+  - 输入 `dC/dtheta_next` 和显式 `theta_transition_cache`
+  - 沿真实离散链反传到 `dC/dphi`
+- `aggregate_node_sensitivity` 已分为两条职责：
+  - legacy 路径保留旧的局部近似装配
+  - exact 路径只负责把 pullback 贡献装配到 `lsf` 节点
+- exact 链离散模板已对齐为 Q4 四角节点（与 FE/HJ 一致）：
+  - `compute_fiber_angles_from_lsf` 从中心差分切换为双线性 Q4 梯度
+  - `differentiate_theta_transition_exact`/`assemble_exact_pullback` 改为四角节点贡献与装配
+- exact 梯度到 HJ 速度新增了显式适配层：
+  - `build_velocity_exact` 先做 `dC/dphi -> V_n` 适配（按 `|grad phi|` 归一）再进入统一速度整形
+  - 2026-04-01 已修复 `build_velocity_exact` 的符号方向；`strict fast exact` 和 `test_exact_hj_descent_smoke` 现已通过
+- `theta_only` 已新增后段防漂移机制：
+  - 容差 schedule：前期放宽、中期线性收紧、后期严格不恶化
+  - 连续接管熔断：`base.opt.theta_only_fuse_limit = 8`
+- 候选质量诊断历史已接入结果：
+  - `theta_only_vs_current_history`
+  - `hj_raw_vs_theta_only_history`
+  - `reinit_vs_theta_only_history`
+- 优化态与评估态已经显式分离：
+  - 评估态：`current_state` / `theta_only_state` / `hj_state` / `reinit_state`
+  - 优化态：围绕 `theta_only_state.theta_transition_cache` 的真实离散导数链
+- 制造约束附加项已接入优化态梯度入口：
+  - `|grad phi|-1`
+  - curvature proxy
+  - gap/overlap proxy
+  - 默认权重为 `0`，因此不会在默认配置下改变评估态行为
 
 ### Refactor equivalence check
 
@@ -112,6 +146,88 @@ Latest recorded metrics:
 - `speedup_indexed_vs_legacy_order2 = 1.164736`
 - `speedup_vectorized_vs_legacy_order1 = 3.843627`
 
+### Latest paired default+precise rerun (2026-03-31 23:51:29)
+
+- Artifact dir:
+  - `/home/again/projects/recover/debug/refactor_artifacts/rerun_default_precise_compare_20260331_235129`
+- Stitched comparison image:
+  - `/home/again/projects/recover/debug/refactor_artifacts/rerun_default_precise_compare_20260331_235129/default_vs_precise_stitched.png`
+- Summary files:
+  - `/home/again/projects/recover/debug/refactor_artifacts/rerun_default_precise_compare_20260331_235129/summary.txt`
+  - `/home/again/projects/recover/debug/refactor_artifacts/rerun_default_precise_compare_20260331_235129/summary.json`
+
+Recorded metrics from this paired rerun:
+
+- `default` (`chain_mode=legacy`)
+  - `initial_compliance = 3.777978412500e-06`
+  - `final_compliance = 3.771308144606e-06`
+  - `best_compliance = 3.771306672634e-06`
+  - `final_FCS = 0.769516728625`
+  - `final_iter = 82` (`executed_iter = 82`)
+  - `accepted_steps = 81`, `rejected_steps = 0`
+- `precise` (`chain_mode=shadow`)
+  - `initial_compliance = 3.875270585552e-06`
+  - `final_compliance = 3.869509360502e-06`
+  - `best_compliance = 3.869511289285e-06`
+  - `final_FCS = 0.808019118428`
+  - `final_iter = 99` (`executed_iter = 99`)
+  - `accepted_steps = 0`, `rejected_steps = 98`
+
+Interpretation for handoff:
+
+- `default (legacy)` is still the stable optimization baseline with normal accepted-step progression.
+- `precise (shadow)` currently behaves as a guard-dominated validation run (plateau + mostly rejected HJ updates), which matches the transition-stage rollout intent but is not yet a strong optimization driver.
+
+### Latest exact-chain repair verification (2026-04-01)
+
+- Stage 1 strict exact fast regression:
+  - `/home/again/projects/recover/debug/refactor_artifacts/stage1_fix_exact_true_20260401_162840/results_fast_exact_stage1.mat`
+  - `chain_mode = exact`
+  - `accepted_steps = 38`, `rejected_steps = 6`
+  - `final_iter = 45`
+  - `final_compliance = 3.545347490606e-06`
+- Stage 2 exact HJ smoke:
+  - `/home/again/projects/recover/debug/refactor_artifacts/stage2_fix_20260401_163440/test_exact_hj_descent_smoke.log`
+  - `C_current = 3.777978e-06`
+  - `C_hj = 3.761182e-06`
+  - `delta = -1.679682e-08`
+  - `dt = 8.713035e-03`, `dt_angle = 8.713035e-03`
+- Stage 2 strict exact fast regression:
+  - `/home/again/projects/recover/debug/refactor_artifacts/stage2_fix_20260401_163440_strict/results_fast_exact_stage2_regression.mat`
+  - `chain_mode = exact`
+  - `accepted_steps = 38`, `rejected_steps = 6`
+  - `final_iter = 45`
+  - `final_compliance = 3.545347490606e-06`
+
+Interpretation for handoff:
+
+- Step1 / Step4 的直接失配点已经修复：`exact -> HJ` 的速度符号方向正确，测试口径也已对齐主循环。
+- 这次修复证明 `exact` 链在严格 `fast` 条件下不再是“零接受步”。
+- 但这不代表 exact 全流程已经完成标定；它只是从“明显错误”进入“可运行但仍需调参”的状态。
+
+### Latest precise exact run (2026-04-01 15:27:43)
+
+- Artifact dir:
+  - `/home/again/projects/recover/debug/refactor_artifacts/precise_exact_rerun_20260401_152743`
+- Files:
+  - `/home/again/projects/recover/debug/refactor_artifacts/precise_exact_rerun_20260401_152743/results_precise_exact.mat`
+  - `/home/again/projects/recover/debug/refactor_artifacts/precise_exact_rerun_20260401_152743/precise_exact_log.txt`
+  - `/home/again/projects/recover/debug/refactor_artifacts/precise_exact_rerun_20260401_152743/precise_exact_like_example.png`
+
+Recorded metrics:
+
+- `chain_mode = exact`
+- `final_compliance = 3.869509360502e-06`
+- `final_FCS = 0.8080`
+- `final_iter = 99`
+- `accepted_steps = 0`, `rejected_steps = 98`
+- `theta_only accepted = 86`, `theta_only rejected = 12`
+
+Interpretation for handoff:
+
+- `precise` 当前虽然已经配置为 `exact`，但整轮行为仍然是明显的 guard-dominated 模式。
+- 也就是说，Step1 / Step4 修复解决了“方向错误”和“测试口径错误”，还没有解决 `exact` 在长程运行中的 acceptance 标定问题。
+
 ### Tests recently confirmed
 
 The following were explicitly run and passed in this environment:
@@ -123,6 +239,24 @@ The following were explicitly run and passed in this environment:
 - `tests/step_checks/test_stepA_acceptance_self_consistency.m`
 - `tests/comparison/run_p1p2_strict_equivalence_check.m`
 - `tests/comparison/run_hj_rhs_mode_benchmark.m`
+- `tests/formula_audit/test_dE_dtheta_fd_audit.m`
+- `tests/formula_audit/test_theta_transition_exact_fd_audit.m`
+- `tests/formula_audit/test_theta_transition_directional_derivative_audit.m`
+- `tests/formula_audit/test_exact_direct_phi_descent_smoke.m`
+- `tests/formula_audit/test_exact_hj_descent_smoke.m`
+- `tests/test_exact_chain_default_smoke.m`
+- `tests/comparison/run_default_precise_rerun_and_stitch.m` (2026-03-31 23:51:29 run tag: `rerun_default_precise_compare_20260331_235129`)
+- `strict fast exact` regression after Step1/Step4 fix (2026-04-01): `accepted_steps = 38`
+
+Additional scripts in exact-chain rollout:
+
+- `tests/formula_audit/test_theta_transition_forward_consistency.m`
+- `tests/formula_audit/test_theta_transition_cache_selfcheck.m`
+- `tests/formula_audit/test_theta_transition_exact_fd_audit.m`
+- `tests/formula_audit/test_theta_transition_directional_derivative_audit.m`
+- `tests/formula_audit/test_theta_transition_limiter_diagnostics.m`
+- `tests/formula_audit/test_manufacturing_penalty_directional_derivatives.m`
+- `tests/test_exact_chain_default_smoke.m`
 
 ## 4. Required Input / Output Contracts
 
@@ -155,6 +289,7 @@ The returned `results` struct is the main programmatic output. Important fields 
 - `path_quality_raw`
 - `path_quality_history`
 - `interface_diagnostics`
+- `gradient_chain_history`
 - `params`
 - `init_info`
 
@@ -186,7 +321,9 @@ The maintained optimizer does this:
 6. Per iteration:
    - evaluate `theta_only`
    - compute FE sensitivity
-   - aggregate `dC/dtheta` to node sensitivity
+   - build optimization-state gradient chain (`legacy` / `shadow` / `exact`)
+   - aggregate `dC/dtheta_next` or legacy `dC/dtheta` to node sensitivity
+   - optionally add manufacturing penalty gradients
    - build a masked narrow-band velocity field
    - advance `lsf` using HJ update
    - optionally do local/global reinitialization
@@ -276,6 +413,16 @@ This is legacy topology-generation code that writes `topo_result.mat`. It is not
 - `tests/comparison/run_hj_rhs_mode_benchmark.m`
   - HJ RHS 模式性能对比（legacy/indexed/vectorized_first_order）
   - 报告写入 `refactor_artifacts/hj_rhs_benchmark_*.{mat,txt}`
+- `tests/formula_audit/test_theta_transition_exact_fd_audit.m`
+  - exact-chain 节点中心差分审计（当前已通过）
+- `tests/formula_audit/test_theta_transition_directional_derivative_audit.m`
+  - exact-chain 方向导数审计（当前已通过，方向采样支撑已收紧到有效梯度节点）
+- `tests/formula_audit/test_exact_direct_phi_descent_smoke.m`
+  - exact 梯度直接 `phi` 微步下降审计（当前已通过）
+- `tests/formula_audit/test_exact_hj_descent_smoke.m`
+  - exact 梯度驱动 HJ 微步下降审计（当前已通过）
+- `tests/test_exact_chain_default_smoke.m`
+  - 过渡期配置 smoke（校验默认链模式为 legacy 并跑通）
 
 Important user preference:
 
@@ -327,10 +474,27 @@ Or run the helper script:
 - Main complexity concentration is still:
   - `level_set_evolution/fiber_run_optimization_iterations.m`
 
-### 4) Historical outputs remain noisy
+### 4) Manufacturing penalties are currently optimization-side only
+
+- They are added to the optimization gradient path, not to candidate-performance evaluation.
+- Current `curvature` / `gap_overlap` terms are rollout-stage proxies with default weight `0`.
+
+### 5) Historical outputs remain noisy
 
 - `baseline_artifacts/` and older refactor artifacts contain many legacy runs.
 - Mainline maintenance target remains `/home/again/projects/recover/debug`.
+
+### 6) Exact-chain rollout remains in transition (not default yet)
+
+- `default` / `fast` remain the stable `legacy` baseline; `precise` is now configured as `exact`, but this should still be treated as a rollout-stage mode rather than a fully tuned production baseline.
+- Step1 / Step4 failure has been fixed: `build_velocity_exact` sign and `test_exact_hj_descent_smoke` test path are now aligned with the main loop.
+- Strict `fast exact` now passes with `accepted_steps = 38`, so exact is no longer failing at the “zero accepted steps under strict smoke” level.
+- The remaining main risk is acceptance composition:
+  - accepted steps are still dominated by `theta_only`
+  - `HJ` and especially `reinit` are still frequently blocked by `next/current` guards
+- Full-run acceptance behavior under `exact` still needs dedicated retuning of guard thresholds, velocity shaping, and possibly exact-only stabilization in non-smoke settings.
+- Directional-derivative audits are now passing with differentiable-support sampling; this support definition must be preserved, otherwise audits can be falsely negative.
+- Latest precise exact run on 2026-04-01 still confirms a guard-dominated long run (`accepted=0`, `rejected=98`) with most progress coming from `theta_only`, not from accepted HJ / reinit evolution.
 
 ## 10. User Preferences That Matter
 
@@ -349,8 +513,8 @@ If the next task is **continued refactor**:
 
 1. Keep `fiber_levelset.m` as a pure orchestration file.
 2. Continue slimming `fiber_run_optimization_iterations.m` (candidate/reinit/diagnostic branches remain the largest blocks).
-3. Keep strict-equivalence gating as hard constraint (`run_p1p2_strict_equivalence_check`).
-4. Re-run `debug` smoke + material-domain tests after each structural change.
+3. Preserve the optimization-state vs evaluation-state separation.
+4. Re-run `fast` smoke + exact-chain audits after each structural change.
 
 If the next task is **spacing control / path-quality improvement**:
 
@@ -361,8 +525,8 @@ If the next task is **spacing control / path-quality improvement**:
 
 If the next task is **numerical quality**:
 
-1. Evaluate whether to switch default `hj_rhs_mode` from `legacy` to `indexed` (only after strict-equivalence + regression pass under target configs).
-2. If pursuing more speed, keep `vectorized_first_order` opt-in and separately validate its use-case envelope.
+1. Re-run the exact-chain audit suite and shadow diagnostics on real runs.
+2. Then evaluate whether to switch default `hj_rhs_mode` from `legacy` to `indexed`.
 3. Then focus on `update_levelset_HJ.m`, `fmm_reinitialize.m`, and `compute_lsf_path_quality.m` for deeper numerical tuning.
 
 ## 12. Useful Companion Files

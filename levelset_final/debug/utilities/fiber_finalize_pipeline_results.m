@@ -37,6 +37,9 @@ function results = fiber_finalize_pipeline_results(runtime_ctx, problem_ctx, ite
         log_message('INFO', params, '早停原因: %s', iter_out.early_stop_reason);
     end
     log_message('INFO', params, '步长接受/拒绝统计: 接受=%d, 拒绝=%d', iter_out.accepted_steps, iter_out.rejected_steps);
+    if isfield(interface_diagnostics, 'gradient_chain') && isfield(interface_diagnostics, 'last_gradient_chain_diag')
+        log_message('INFO', params, '梯度链模式: %s', params.gradient.chain_mode);
+    end
     log_message('INFO', params, 'theta-only统计: 接受=%d, 拒绝=%d', iter_out.theta_only_accept_count, iter_out.theta_only_reject_count);
     log_message('INFO', params, '拒绝原因统计: next_guard=%d, current_guard=%d', ...
         iter_out.reject_due_next_guard, iter_out.reject_due_current_guard);
@@ -109,11 +112,15 @@ function results = fiber_finalize_pipeline_results(runtime_ctx, problem_ctx, ite
     results_input.raw_final_FCS = iter_out.raw_final_FCS;
     results_input.raw_final_improvement_ratio = iter_out.raw_final_improvement_ratio;
     results_input.final_to_best_gap_percent = iter_out.final_to_best_gap_percent;
+    results_input.theta_only_vs_current_history = iter_out.theta_only_vs_current_history;
+    results_input.hj_raw_vs_theta_only_history = iter_out.hj_raw_vs_theta_only_history;
+    results_input.reinit_vs_theta_only_history = iter_out.reinit_vs_theta_only_history;
     results_input.material_mask_core = problem_ctx.material_mask_core;
     results_input.material_mask_full = problem_ctx.material_mask_full;
     results_input.path_quality_raw = final_raw_metrics;
     results_input.path_quality_history = path_quality_history;
     results_input.interface_diagnostics = interface_diagnostics;
+    results_input.gradient_chain_history = interface_diagnostics.gradient_chain;
     results_input.constraint = params.constraint;
     results_input.init_boundary_geometry = problem_ctx.init_info.boundary_geometry;
     results_input.init_info = problem_ctx.init_info;

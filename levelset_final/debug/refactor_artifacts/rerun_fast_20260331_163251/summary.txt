@@ -1,0 +1,7 @@
+run_tag=rerun_fast_20260331_163251
+final_compliance=9.022712343230e-07
+final_FCS=0.836166
+final_iter=20
+best_iter=1
+accepted_steps=0
+rejected_steps=19

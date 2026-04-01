@@ -9,11 +9,13 @@ function candidate = evaluate_candidate_state(lsf_trial, theta_prev, delta_theta
         smooth_iterations = 2;
     end
 
-    [theta_trial, theta_target] = advance_theta_state(lsf_trial, theta_prev, delta_theta_max, ...
+    [theta_trial, theta_target, theta_transition_cache] = advance_theta_state(lsf_trial, theta_prev, delta_theta_max, ...
         dx, dy, material_mask, smooth_eta, smooth_iterations);
     state = evaluate_state_with_theta(lsf_trial, theta_trial, nelx, nely, material_mask, ...
         E_L, E_T, nu_LT, G_LT, thickness, F_mag, dx, dy);
 
     candidate = state;
     candidate.theta_target = theta_target;
+    candidate.theta_transition_cache = theta_transition_cache;
+    candidate.theta_raw = theta_transition_cache.theta_raw;
 end

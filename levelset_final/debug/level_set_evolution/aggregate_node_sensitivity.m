@@ -1,10 +1,24 @@
-function node_sensitivity = aggregate_node_sensitivity(element_sensitivity, ~, lsf, nelx, nely, dx, dy, primary_update_mask)
-    % 通过链式法则将单元灵敏度汇总到水平集节点
+function node_sensitivity = aggregate_node_sensitivity(sensitivity_input, ~, lsf, nelx, nely, dx, dy, primary_update_mask)
+%AGGREGATE_NODE_SENSITIVITY Assemble node sensitivity for legacy/exact chains.
 
-    global DIAG;
-    node_sensitivity = zeros(size(lsf));
+    primary_update_mask = normalize_primary_update_mask(primary_update_mask, lsf, nelx, nely);
 
-    if nargin < 8 || isempty(primary_update_mask)
+    if isstruct(sensitivity_input) && isfield(sensitivity_input, 'mode')
+        switch lower(string(sensitivity_input.mode))
+            case "exact"
+                node_sensitivity = assemble_exact_pullback(sensitivity_input, lsf, primary_update_mask, nelx, nely);
+            otherwise
+                error('aggregate_node_sensitivity:UnsupportedMode', ...
+                    '不支持的pullback模式: %s', sensitivity_input.mode);
+        end
+    else
+        node_sensitivity = aggregate_node_sensitivity_legacy( ...
+            sensitivity_input, lsf, nelx, nely, dx, dy, primary_update_mask);
+    end
+end
+
+function primary_update_mask = normalize_primary_update_mask(primary_update_mask, lsf, nelx, nely)
+    if nargin < 1 || isempty(primary_update_mask)
         primary_update_mask = true(size(lsf));
     end
     if isequal(size(primary_update_mask), [nely, nelx])
@@ -17,13 +31,20 @@ function node_sensitivity = aggregate_node_sensitivity(element_sensitivity, ~, l
             size(lsf,1), size(lsf,2), nely, nelx, size(primary_update_mask,1), size(primary_update_mask,2));
     end
     primary_update_mask = logical(primary_update_mask);
+end
+
+function node_sensitivity = aggregate_node_sensitivity_legacy(element_sensitivity, lsf, nelx, nely, dx, dy, primary_update_mask)
+    % 旧版局部角度链近似，保留用于legacy/shadow对照。
+
+    global DIAG;
+    node_sensitivity = zeros(size(lsf));
 
     dN_dxi = [-0.25,  0.25,  0.25, -0.25];
     dN_deta = [-0.25, -0.25,  0.25,  0.25];
     dN_dx = dN_dxi * (2/dx);
     dN_dy = dN_deta * (2/dy);
     grad_threshold = 0.05;
-    eps_denom = 1e-12;            % 正则化分母的下限
+    eps_denom = 1e-12;
 
     for ely = 1:nely
         for elx = 1:nelx
@@ -49,8 +70,6 @@ function node_sensitivity = aggregate_node_sensitivity(element_sensitivity, ~, l
 
             dphi_dx = sum(dN_dx .* phi_nodes);
             dphi_dy = sum(dN_dy .* phi_nodes);
-            sum_dx_phi = dphi_dx;
-            sum_dy_phi = dphi_dy;
             grad_sq = dphi_dx^2 + dphi_dy^2;
 
             if ~isempty(DIAG)
@@ -74,8 +93,8 @@ function node_sensitivity = aggregate_node_sensitivity(element_sensitivity, ~, l
                     continue;
                 end
                 phi_i = phi_nodes(k);
-                Pi = sum_dx_phi - dN_dx(k) * phi_i;
-                Qi = sum_dy_phi - dN_dy(k) * phi_i;
+                Pi = dphi_dx - dN_dx(k) * phi_i;
+                Qi = dphi_dy - dN_dy(k) * phi_i;
                 A = dN_dx(k) * phi_i + Pi;
                 B = dN_dy(k) * phi_i + Qi;
                 denom = max(A * A + B * B, eps_denom);
@@ -91,7 +110,8 @@ function node_sensitivity = aggregate_node_sensitivity(element_sensitivity, ~, l
                     warning('aggregate_node_sensitivity: 非有限贡献 (ely=%d, elx=%d, node=%d)', ely, elx, k);
                     continue;
                 end
-                node_sensitivity(node_coords(k,1), node_coords(k,2)) = node_sensitivity(node_coords(k,1), node_coords(k,2)) + contrib;
+                node_sensitivity(node_coords(k,1), node_coords(k,2)) = ...
+                    node_sensitivity(node_coords(k,1), node_coords(k,2)) + contrib;
                 if ~isempty(DIAG) && contrib ~= 0
                     DIAG.contrib_nonzero = DIAG.contrib_nonzero + 1;
                 end
@@ -103,7 +123,33 @@ function node_sensitivity = aggregate_node_sensitivity(element_sensitivity, ~, l
         end
     end
 
-    % 强制掩膜外节点为零，避免任何数值泄漏
     node_sensitivity(~primary_update_mask) = 0;
 end
 
+function node_sensitivity = assemble_exact_pullback(pullback, lsf, primary_update_mask, nelx, nely)
+    node_sensitivity = zeros(size(lsf));
+    material_mask_core = logical(pullback.material_mask_core);
+
+    for ely = 1:nely
+        for elx = 1:nelx
+            if ~material_mask_core(ely, elx)
+                continue;
+            end
+
+            base_i = ely + 1;
+            base_j = elx + 1;
+
+            node_sensitivity(base_i, base_j) = node_sensitivity(base_i, base_j) + ...
+                pullback.top_left_contrib(ely, elx);
+            node_sensitivity(base_i + 1, base_j) = node_sensitivity(base_i + 1, base_j) + ...
+                pullback.bottom_left_contrib(ely, elx);
+            node_sensitivity(base_i + 1, base_j + 1) = node_sensitivity(base_i + 1, base_j + 1) + ...
+                pullback.bottom_right_contrib(ely, elx);
+            node_sensitivity(base_i, base_j + 1) = node_sensitivity(base_i, base_j + 1) + ...
+                pullback.top_right_contrib(ely, elx);
+        end
+    end
+
+    node_sensitivity(~isfinite(node_sensitivity)) = 0;
+    node_sensitivity(~primary_update_mask) = 0;
+end

@@ -31,7 +31,10 @@ function iter_out = fiber_run_optimization_iterations(runtime_ctx, problem_ctx)
     enable_best_state_guard = runtime_ctx.enable_best_state_guard;
     best_state_rel_tol = runtime_ctx.best_state_rel_tol;
     best_state_patience = runtime_ctx.best_state_patience;
+    theta_only_fuse_limit = runtime_ctx.theta_only_fuse_limit;
     velocity_opts = runtime_ctx.velocity_opts;
+    gradient_opts = runtime_ctx.gradient_opts;
+    manufacturing_opts = runtime_ctx.manufacturing_opts;
 
     F_mag = runtime_ctx.F_mag;
     hj_update_opts = runtime_ctx.hj_update_opts;
@@ -58,6 +61,7 @@ function iter_out = fiber_run_optimization_iterations(runtime_ctx, problem_ctx)
     rejected_steps = problem_ctx.rejected_steps;
     theta_only_accept_count = problem_ctx.theta_only_accept_count;
     theta_only_reject_count = problem_ctx.theta_only_reject_count;
+    theta_only_consecutive_count = problem_ctx.theta_only_consecutive_count;
     reject_due_next_guard = problem_ctx.reject_due_next_guard;
     reject_due_current_guard = problem_ctx.reject_due_current_guard;
     reinit_trigger_count = problem_ctx.reinit_trigger_count;
@@ -102,6 +106,28 @@ function iter_out = fiber_run_optimization_iterations(runtime_ctx, problem_ctx)
     last_propagation_mask = problem_ctx.last_propagation_mask;
     last_hj_info = problem_ctx.last_hj_info;
     last_reinit_info = problem_ctx.last_reinit_info;
+    gradient_chain_cosine_history = problem_ctx.gradient_chain_cosine_history;
+    gradient_chain_norm_ratio_history = problem_ctx.gradient_chain_norm_ratio_history;
+    gradient_chain_topk_sign_history = problem_ctx.gradient_chain_topk_sign_history;
+    gradient_chain_saturation_history = problem_ctx.gradient_chain_saturation_history;
+    gradient_chain_degenerate_history = problem_ctx.gradient_chain_degenerate_history;
+    gradient_chain_active_band_coverage_history = problem_ctx.gradient_chain_active_band_coverage_history;
+    gradient_chain_zero_limiter_history = problem_ctx.gradient_chain_zero_limiter_history;
+    gradient_chain_exact_nonzero_history = problem_ctx.gradient_chain_exact_nonzero_history;
+    gradient_chain_support_overlap_history = problem_ctx.gradient_chain_support_overlap_history;
+    gradient_chain_theta_raw_guard_history = problem_ctx.gradient_chain_theta_raw_guard_history;
+    gradient_chain_theta_raw_guard_overlap_history = problem_ctx.gradient_chain_theta_raw_guard_overlap_history;
+    gradient_chain_full_vs_opt_overlap_history = problem_ctx.gradient_chain_full_vs_opt_overlap_history;
+    gradient_chain_selected_source_history = problem_ctx.gradient_chain_selected_source_history;
+    gradient_chain_audit_mode = problem_ctx.gradient_chain_audit_mode;
+    last_gradient_chain_diag = problem_ctx.last_gradient_chain_diag;
+    manufacturing_grad_norm_history = problem_ctx.manufacturing_grad_norm_history;
+    manufacturing_curvature_norm_history = problem_ctx.manufacturing_curvature_norm_history;
+    manufacturing_gap_overlap_norm_history = problem_ctx.manufacturing_gap_overlap_norm_history;
+    theta_only_vs_current_history = problem_ctx.theta_only_vs_current_history;
+    hj_raw_vs_theta_only_history = problem_ctx.hj_raw_vs_theta_only_history;
+    reinit_vs_theta_only_history = problem_ctx.reinit_vs_theta_only_history;
+    last_manufacturing_diag = problem_ctx.last_manufacturing_diag;
 
     current_state = problem_ctx.current_state;
 for iter = 1:max_iter
@@ -203,10 +229,21 @@ for iter = 1:max_iter
         params.smooth.eta, params.smooth.iterations);
     theta_only_compliance = theta_only_state.compliance;
     theta_only_compliance_history(iter) = theta_only_compliance;
+    theta_only_vs_current_history(iter) = compute_candidate_delta(theta_only_compliance, compliance);
     theta_only_delta = atan2(sin(theta_only_state.theta(:) - theta_e(:)), cos(theta_only_state.theta(:) - theta_e(:)));
     theta_only_state_changed = max(abs(theta_only_delta)) > 1e-12;
+    theta_only_tol = compute_theta_only_tol(iter, max_iter, current_state_tol);
+    theta_only_fuse_active = theta_only_consecutive_count >= theta_only_fuse_limit && no_improve_counter > 5;
+    if theta_only_fuse_active
+        if theta_only_consecutive_count == theta_only_fuse_limit
+            log_message('INFO', params, ...
+                'theta_only 熔断触发：连续%d步 theta_only 接管，后续仅允许不恶化。', ...
+                theta_only_consecutive_count);
+        end
+        theta_only_tol = 0;
+    end
     theta_only_ok_current = isfinite(theta_only_compliance) && ...
-        theta_only_compliance <= compliance * (1 + current_state_tol);
+        theta_only_compliance <= compliance * (1 + theta_only_tol);
     theta_only_accepted = theta_only_state_changed && theta_only_ok_current;
     if theta_only_state_changed
         if theta_only_accepted
@@ -217,17 +254,59 @@ for iter = 1:max_iter
     end
 
     % 3.5 灵敏度与速度场
-    sensitivity = compute_sensitivity_adjoint(nelx, nely, U, theta_e, E_L, E_T, nu_LT, G_LT, thickness, dx, dy, material_mask_core, params.opt.normalize_sensitivity);
-
-    fprintf('迭代 %d - 灵敏度统计：最大=%e，最小=%e，平均=%e\n', iter, ...
-        max(sensitivity(:)), min(sensitivity(:)), mean(abs(sensitivity(:))));
-
     primary_update_mask = bands.narrow_15h & material_mask_full & ~boundary_guard_band;
     stencil_mask = dilate_binary_mask(primary_update_mask, params.levelset.stencil_buffer_cells) & material_mask_full;
     boundary_frozen_mask = bands.narrow_15h & material_mask_full & boundary_guard_band;
     boundary_guard_ratio_history(iter) = safe_fraction(nnz(boundary_frozen_mask), nnz(bands.narrow_15h & material_mask_full));
     frozen_boundary_point_history(iter) = nnz(boundary_frozen_mask);
-    node_sensitivity = aggregate_node_sensitivity(sensitivity, theta_e, lsf, nelx, nely, dx, dy, primary_update_mask);
+
+    gradient_in = struct();
+    gradient_in.current_state = current_state;
+    gradient_in.theta_only_state = theta_only_state;
+    gradient_in.lsf = lsf;
+    gradient_in.nelx = nelx;
+    gradient_in.nely = nely;
+    gradient_in.dx = dx;
+    gradient_in.dy = dy;
+    gradient_in.material_mask_core = material_mask_core;
+    gradient_in.material_mask_full = material_mask_full;
+    gradient_in.primary_update_mask = primary_update_mask;
+    gradient_in.gradient_opts = gradient_opts;
+    gradient_in.normalize_sensitivity = params.opt.normalize_sensitivity;
+    gradient_in.E_L = E_L;
+    gradient_in.E_T = E_T;
+    gradient_in.nu_LT = nu_LT;
+    gradient_in.G_LT = G_LT;
+    gradient_in.thickness = thickness;
+    gradient_out = compute_gradient_chain_sensitivity(gradient_in);
+    node_sensitivity = gradient_out.chosen_node_sensitivity;
+    legacy_node_sensitivity = gradient_out.legacy_node_sensitivity;
+    exact_node_sensitivity = gradient_out.exact_node_sensitivity;
+    exact_node_sensitivity_full = gradient_out.exact_node_sensitivity_full;
+    gradient_chain_diag = gradient_out.diagnostics;
+    last_gradient_chain_diag = gradient_chain_diag;
+
+    if iter == 1 || mod(iter, 10) == 0
+        fprintf('迭代 %d - 节点灵敏度统计：最大=%e，最小=%e，平均=%e，source=%s\n', iter, ...
+            max(node_sensitivity(:)), min(node_sensitivity(:)), mean(abs(node_sensitivity(:))), ...
+            gradient_out.chosen_source);
+    end
+
+    gradient_chain_selected_source_history(iter) = string(gradient_out.chosen_source);
+    if ~isempty(fieldnames(gradient_chain_diag))
+        gradient_chain_cosine_history(iter) = get_struct_field_or_default(gradient_chain_diag, 'cosine_similarity', NaN);
+        gradient_chain_norm_ratio_history(iter) = get_struct_field_or_default(gradient_chain_diag, 'norm_ratio', NaN);
+        gradient_chain_topk_sign_history(iter) = get_struct_field_or_default(gradient_chain_diag, 'topk_sign_agreement', NaN);
+        gradient_chain_saturation_history(iter) = get_struct_field_or_default(gradient_chain_diag, 'saturation_ratio', NaN);
+        gradient_chain_degenerate_history(iter) = get_struct_field_or_default(gradient_chain_diag, 'degenerate_ratio', NaN);
+        gradient_chain_active_band_coverage_history(iter) = get_struct_field_or_default(gradient_chain_diag, 'active_band_coverage', NaN);
+        gradient_chain_zero_limiter_history(iter) = get_struct_field_or_default(gradient_chain_diag, 'zero_gradient_due_to_limiter_ratio', NaN);
+        gradient_chain_exact_nonzero_history(iter) = get_struct_field_or_default(gradient_chain_diag, 'exact_gradient_active_nonzero_ratio', NaN);
+        gradient_chain_support_overlap_history(iter) = get_struct_field_or_default(gradient_chain_diag, 'exact_vs_legacy_band_support_overlap', NaN);
+        gradient_chain_theta_raw_guard_history(iter) = get_struct_field_or_default(gradient_chain_diag, 'theta_raw_guard_ratio', NaN);
+        gradient_chain_theta_raw_guard_overlap_history(iter) = get_struct_field_or_default(gradient_chain_diag, 'theta_raw_guard_nonzero_overlap', NaN);
+        gradient_chain_full_vs_opt_overlap_history(iter) = get_struct_field_or_default(gradient_chain_diag, 'full_vs_opt_support_overlap', NaN);
+    end
 
     if iter == 1 || mod(iter, 10) == 0
         sens_diag = abs(node_sensitivity(:));
@@ -242,6 +321,14 @@ for iter = 1:max_iter
                 p95, p99, maxv, ratio_p95, ratio_p99);
         end
     end
+
+    [manufacturing_gradient, manufacturing_diag] = compute_manufacturing_penalty_gradient( ...
+        lsf, dx, dy, material_mask_full, lsf_target_global, primary_update_mask, manufacturing_opts);
+    node_sensitivity = node_sensitivity + manufacturing_gradient;
+    last_manufacturing_diag = manufacturing_diag;
+    manufacturing_grad_norm_history(iter) = manufacturing_diag.grad_norm_grad_norm;
+    manufacturing_curvature_norm_history(iter) = manufacturing_diag.curvature_grad_norm;
+    manufacturing_gap_overlap_norm_history(iter) = manufacturing_diag.gap_overlap_grad_norm;
 
     sens_scale_value = NaN;
     sens_abs_band = abs(node_sensitivity(primary_update_mask));
@@ -261,8 +348,13 @@ for iter = 1:max_iter
     else
         curvature_gamma = 0;
     end
-    [velocity, velocity_stats] = build_velocity_field(node_sensitivity, lsf, dx, dy, 1.5*h_grid, ...
-        velocity_opts.enable_bias_removal, curvature_gamma, iter, primary_update_mask, velocity_opts);
+    if strcmp(gradient_out.chosen_source, 'exact')
+        [velocity, velocity_stats] = build_velocity_exact(node_sensitivity, lsf, dx, dy, 1.5*h_grid, ...
+            velocity_opts.enable_bias_removal, curvature_gamma, iter, primary_update_mask, velocity_opts);
+    else
+        [velocity, velocity_stats] = build_velocity_field(node_sensitivity, lsf, dx, dy, 1.5*h_grid, ...
+            velocity_opts.enable_bias_removal, curvature_gamma, iter, primary_update_mask, velocity_opts);
+    end
     last_velocity_field = velocity;
     last_propagation_mask = primary_update_mask;
 
@@ -302,6 +394,12 @@ for iter = 1:max_iter
     log_summary_in.dt_adaptive = dt_adaptive;
     log_summary_in.dt_cfl = dt_cfl;
     log_summary_in.dt_angle = dt_angle;
+    log_summary_in.gradient_chain_diag = gradient_chain_diag;
+    log_summary_in.gradient_chain_source = gradient_out.chosen_source;
+    log_summary_in.legacy_node_sensitivity = legacy_node_sensitivity;
+    log_summary_in.exact_node_sensitivity = exact_node_sensitivity;
+    log_summary_in.exact_node_sensitivity_full = exact_node_sensitivity_full;
+    log_summary_in.manufacturing_diag = manufacturing_diag;
     fiber_log_sensitivity_velocity_summary(log_summary_in);
 
     % 3.6 HJ候选
@@ -386,6 +484,7 @@ for iter = 1:max_iter
     hj_raw_compliance_history(iter) = hj_raw_compliance;
     hj_trial_compliance_history(iter) = hj_trial_compliance;
     hj_local_reinit_compliance_history(iter) = hj_local_reinit_compliance;
+    hj_raw_vs_theta_only_history(iter) = compute_candidate_delta(hj_raw_compliance, theta_only_compliance);
 
     % 接受HJ候选后，先执行局部强制重初始化，再按原有条件决定是否做更大范围重初始化。
     reinit_candidate_selected = false;
@@ -517,6 +616,7 @@ for iter = 1:max_iter
         end
     end
     reinit_trial_compliance_history(iter) = reinit_trial_compliance;
+    reinit_vs_theta_only_history(iter) = compute_candidate_delta(reinit_trial_compliance, theta_only_compliance);
 
     sel_in = struct();
     sel_in.current_state = current_state;
@@ -578,6 +678,11 @@ for iter = 1:max_iter
     end
     accepted_source_history{iter} = accepted_source;
     accepted_source_detail_history(iter) = string(accepted_source_detail);
+    if strcmp(accepted_source, 'theta_only')
+        theta_only_consecutive_count = theta_only_consecutive_count + 1;
+    else
+        theta_only_consecutive_count = 0;
+    end
     loop_iter_count = iter;
 
     ENABLE_HARD_PROJECTION = logical(params.projection.enable);
@@ -708,6 +813,26 @@ end
     fin_in.post_reinit_grad_dev_mean_history = post_reinit_grad_dev_mean_history;
     fin_in.post_reinit_grad_outlier_ratio_history = post_reinit_grad_outlier_ratio_history;
     fin_in.refresh_shell_size_history = refresh_shell_size_history;
+    fin_in.gradient_chain_cosine_history = gradient_chain_cosine_history;
+    fin_in.gradient_chain_norm_ratio_history = gradient_chain_norm_ratio_history;
+    fin_in.gradient_chain_topk_sign_history = gradient_chain_topk_sign_history;
+    fin_in.gradient_chain_saturation_history = gradient_chain_saturation_history;
+    fin_in.gradient_chain_degenerate_history = gradient_chain_degenerate_history;
+    fin_in.gradient_chain_active_band_coverage_history = gradient_chain_active_band_coverage_history;
+    fin_in.gradient_chain_zero_limiter_history = gradient_chain_zero_limiter_history;
+    fin_in.gradient_chain_exact_nonzero_history = gradient_chain_exact_nonzero_history;
+    fin_in.gradient_chain_support_overlap_history = gradient_chain_support_overlap_history;
+    fin_in.gradient_chain_theta_raw_guard_history = gradient_chain_theta_raw_guard_history;
+    fin_in.gradient_chain_theta_raw_guard_overlap_history = gradient_chain_theta_raw_guard_overlap_history;
+    fin_in.gradient_chain_full_vs_opt_overlap_history = gradient_chain_full_vs_opt_overlap_history;
+    fin_in.gradient_chain_selected_source_history = gradient_chain_selected_source_history;
+    fin_in.gradient_chain_audit_mode = gradient_chain_audit_mode;
+    fin_in.manufacturing_grad_norm_history = manufacturing_grad_norm_history;
+    fin_in.manufacturing_curvature_norm_history = manufacturing_curvature_norm_history;
+    fin_in.manufacturing_gap_overlap_norm_history = manufacturing_gap_overlap_norm_history;
+    fin_in.theta_only_vs_current_history = theta_only_vs_current_history;
+    fin_in.hj_raw_vs_theta_only_history = hj_raw_vs_theta_only_history;
+    fin_in.reinit_vs_theta_only_history = reinit_vs_theta_only_history;
     fin_in.history_count = history_count;
     fin_in.current_state_recorded = current_state_recorded;
     fin_in.loop_iter_count = loop_iter_count;
@@ -717,6 +842,8 @@ end
     fin_in.last_reinit_info = last_reinit_info;
     fin_in.last_velocity_field = last_velocity_field;
     fin_in.last_propagation_mask = last_propagation_mask;
+    fin_in.last_gradient_chain_diag = last_gradient_chain_diag;
+    fin_in.last_manufacturing_diag = last_manufacturing_diag;
 
     final_out = fiber_finalize_iteration_outputs(fin_in);
 
@@ -725,6 +852,7 @@ end
     iter_out.rejected_steps = rejected_steps;
     iter_out.theta_only_accept_count = theta_only_accept_count;
     iter_out.theta_only_reject_count = theta_only_reject_count;
+    iter_out.theta_only_consecutive_count_final = theta_only_consecutive_count;
     iter_out.reject_due_next_guard = reject_due_next_guard;
     iter_out.reject_due_current_guard = reject_due_current_guard;
     iter_out.reinit_trigger_count = reinit_trigger_count;
@@ -738,4 +866,28 @@ end
     iter_out.early_stop_triggered = early_stop_triggered;
     iter_out.early_stop_reason = early_stop_reason;
     iter_out.no_improve_counter = no_improve_counter;
+end
+
+function tol = compute_theta_only_tol(iter, max_iter, base_tol)
+    if base_tol <= 0 || max_iter <= 0
+        tol = 0;
+        return;
+    end
+
+    frac = iter / max_iter;
+    if frac <= 0.15
+        tol = base_tol;
+    elseif frac <= 0.40
+        tol = base_tol * (0.40 - frac) / 0.25;
+    else
+        tol = 0;
+    end
+end
+
+function delta = compute_candidate_delta(candidate_value, reference_value)
+    if ~isfinite(candidate_value) || ~isfinite(reference_value)
+        delta = NaN;
+    else
+        delta = candidate_value - reference_value;
+    end
 end

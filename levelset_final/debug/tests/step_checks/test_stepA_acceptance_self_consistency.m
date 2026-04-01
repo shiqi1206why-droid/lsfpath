@@ -16,22 +16,42 @@ delta_phi = params.levelset.delta_phi_factor * params.grid.h;
     material_mask, params.grid.nelx, params.grid.nely, ...
     params.grid.dx, params.grid.dy, delta_phi, struct('morph_radius', params.init.morph_radius));
 
-[theta_e, ~] = advance_theta_state(lsf, [], params.opt.delta_theta_max, ...
-    params.grid.dx, params.grid.dy, params.smooth.eta, params.smooth.iterations);
-[U, ~, F] = FE_analysis_cantilever(params.grid.nelx, params.grid.nely, theta_e, ...
+current_state = evaluate_candidate_state(lsf, [], params.opt.delta_theta_max, ...
+    params.grid.dx, params.grid.dy, params.grid.nelx, params.grid.nely, material_mask, ...
     params.material.E_L, params.material.E_T, params.material.nu_LT, params.material.G_LT, ...
-    params.material.thickness, params.load.F_mag, params.grid.dx, params.grid.dy, material_mask);
-C_current = full(U' * F);
-
-sensitivity = compute_sensitivity_adjoint(params.grid.nelx, params.grid.nely, U, theta_e, ...
+    params.material.thickness, params.load.F_mag, params.smooth.eta, params.smooth.iterations);
+theta_e = current_state.theta;
+U = current_state.U;
+F = current_state.F;
+C_current = current_state.compliance;
+theta_only_state = evaluate_candidate_state(lsf, theta_e, params.opt.delta_theta_max, ...
+    params.grid.dx, params.grid.dy, params.grid.nelx, params.grid.nely, material_mask, ...
     params.material.E_L, params.material.E_T, params.material.nu_LT, params.material.G_LT, ...
-    params.material.thickness, params.grid.dx, params.grid.dy, material_mask, params.opt.normalize_sensitivity);
+    params.material.thickness, params.load.F_mag, params.smooth.eta, params.smooth.iterations);
 
 band_mask = abs(lsf) <= 1.5 * params.grid.h;
 material_mask_full = expand_material_mask_to_full(material_mask);
 primary_update_mask = band_mask & material_mask_full;
-node_sensitivity = aggregate_node_sensitivity(sensitivity, theta_e, lsf, ...
-    params.grid.nelx, params.grid.nely, params.grid.dx, params.grid.dy, primary_update_mask);
+gradient_in = struct();
+gradient_in.current_state = current_state;
+gradient_in.theta_only_state = theta_only_state;
+gradient_in.lsf = lsf;
+gradient_in.nelx = params.grid.nelx;
+gradient_in.nely = params.grid.nely;
+gradient_in.dx = params.grid.dx;
+gradient_in.dy = params.grid.dy;
+gradient_in.material_mask_core = material_mask;
+gradient_in.material_mask_full = material_mask_full;
+gradient_in.primary_update_mask = primary_update_mask;
+gradient_in.gradient_opts = params.gradient;
+gradient_in.normalize_sensitivity = params.opt.normalize_sensitivity;
+gradient_in.E_L = params.material.E_L;
+gradient_in.E_T = params.material.E_T;
+gradient_in.nu_LT = params.material.nu_LT;
+gradient_in.G_LT = params.material.G_LT;
+gradient_in.thickness = params.material.thickness;
+gradient_out = compute_gradient_chain_sensitivity(gradient_in);
+node_sensitivity = gradient_out.chosen_node_sensitivity;
 sens_abs_band = abs(node_sensitivity(primary_update_mask));
 if ~isempty(sens_abs_band)
     p95_norm = prctile(sens_abs_band, params.velocity.scale_quantile);

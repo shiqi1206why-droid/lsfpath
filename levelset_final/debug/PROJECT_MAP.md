@@ -27,8 +27,10 @@ This project optimizes continuous fiber paths inside a topology-optimized struct
    - update fiber angles from `lsf`
    - run FE analysis
    - compute compliance and FCS
-   - compute angle sensitivity `dC/dtheta`
+   - build optimization-state gradient chain (`legacy` / `shadow` / `exact`)
+   - compute angle sensitivity `dC/dtheta_next`
    - aggregate to node sensitivity `dC/dphi`
+   - optionally add optimization-side manufacturing penalties
    - build a narrow-band velocity field
    - advance `lsf` with HJ update
    - optionally reinitialize with FMM
@@ -61,17 +63,21 @@ This project optimizes continuous fiber paths inside a topology-optimized struct
 ### Core Computation
 
 - `core_computation/advance_theta_state.m`
-  - Converts `lsf` to target angles and rate-limits the update from previous `theta`.
+  - Thin wrapper around the shared theta-transition forward core.
+- `core_computation/compute_theta_transition_forward.m`
+  - Shared forward discretization for `phi -> theta_raw -> z_smooth -> theta_target -> theta_next`.
 - `core_computation/compute_fiber_angles_from_lsf.m`
-  - Computes element fiber angle from `grad(lsf)`.
+  - Computes element fiber angle from `grad(lsf)` and returns explicit gradient caches.
 - `core_computation/FE_analysis_cantilever.m`
   - Assembles and solves the FE system on a cantilever domain.
 - `core_computation/compute_sensitivity_adjoint.m`
   - Computes `dC/dtheta` using `-Ue' * dKe/dtheta * Ue`.
+- `core_computation/differentiate_theta_transition_exact.m`
+  - Pulls `dC/dtheta_next` back through the exact shared theta-transition discretization.
 - `core_computation/evaluate_state_with_theta.m`
   - Packs FE solve, compliance, strain energy, and FCS for a given `(lsf, theta)`.
 - `core_computation/evaluate_candidate_state.m`
-  - One-step candidate evaluation on a trial `lsf`.
+  - One-step candidate evaluation on a trial `lsf`, including `theta_transition_cache`.
 - `core_computation/element_stiffness.m`
   - Builds `Ke` and optionally `dKe/dtheta` from the orthotropic constitutive law.
 - `core_computation/orthotropic_constitutive_matrix.m`
@@ -80,9 +86,13 @@ This project optimizes continuous fiber paths inside a topology-optimized struct
 ### Level Set Evolution
 
 - `level_set_evolution/aggregate_node_sensitivity.m`
-  - Applies the chain rule from element sensitivity to node sensitivity.
+  - Legacy local-chain aggregation plus exact pullback assembly.
 - `level_set_evolution/build_velocity_field.m`
   - Builds the narrow-band normal velocity from node sensitivity.
+- `level_set_evolution/compute_gradient_chain_sensitivity.m`
+  - Central selector for legacy/shadow/exact gradient-chain evaluation.
+- `level_set_evolution/compute_manufacturing_penalty_gradient.m`
+  - Adds optimization-side manufacturing penalty gradients.
 - `level_set_evolution/compute_adaptive_timestep.m`
   - CFL-based robust time-step selection.
 - `level_set_evolution/should_reinitialize.m`
@@ -143,10 +153,18 @@ Inside `fiber_levelset`, the most important evolving quantities are:
 - `lsf`: signed distance-like level set field with ghost cells.
 - `theta_e`: element fiber angle field.
 - `theta_target`: smoothed target angle field derived from `lsf`.
+- `theta_transition_cache`: explicit cache for the shared theta-transition forward chain.
 - `U`, `K`, `F`: FE displacement, stiffness, load.
 - `compliance`: objective value.
 - `FCS`: fiber continuity score.
 - `best_state`: historical best state used for rollback and early stop.
+
+There are now two different roles for state:
+
+- Evaluation state
+  - explicit `(lsf, theta)` candidate with FE results used for acceptance and rollback.
+- Optimization state
+  - the shared theta-transition cache used to compute the real discrete `dC/dphi`.
 
 ## Candidate Selection Logic
 
@@ -169,6 +187,24 @@ Acceptance is guarded by:
 - optional historical best-state patience for early stop.
 
 This means the optimizer is deliberately conservative. It is not a pure gradient descent loop.
+
+## Gradient Chain Modes
+
+`params.gradient.chain_mode` supports:
+
+- `legacy`
+  - old local `dC/dtheta -> dC/dphi` approximation
+- `shadow`
+  - compute both legacy and exact chain, but still optimize with legacy
+- `exact`
+  - optimize with the exact shared-discretization pullback
+
+`params.gradient.limiter_mode` supports:
+
+- `hard`
+  - piecewise-exact subgradient for the rate limiter
+- `soft_experiment`
+  - experimental smooth pullback for optimization only
 
 ## Numerical Intent
 
@@ -195,6 +231,18 @@ The project already contains useful verification layers:
   - acceptance logic and step-guard behavior.
 - `tests/formula_audit/test_dE_dtheta_fd_audit.m`
   - finite-difference audit of `dC/dtheta`.
+- `tests/formula_audit/test_theta_transition_forward_consistency.m`
+  - shared theta-transition forward consistency audit.
+- `tests/formula_audit/test_theta_transition_cache_selfcheck.m`
+  - cache layout / reconstruction self-check.
+- `tests/formula_audit/test_theta_transition_exact_fd_audit.m`
+  - nodewise finite-difference audit of exact `dC/dphi`.
+- `tests/formula_audit/test_theta_transition_directional_derivative_audit.m`
+  - random-direction audit of exact `dC/dphi`.
+- `tests/formula_audit/test_theta_transition_limiter_diagnostics.m`
+  - limiter saturation / zero-gradient diagnostics.
+- `tests/formula_audit/test_manufacturing_penalty_directional_derivatives.m`
+  - directional derivative audit for manufacturing penalty terms.
 - `tests/baseline/run_fast_baseline.m`
   - captures a structured regression baseline with metrics, plots, log, and printability outputs.
 - `tests/comparison/run_refactor_strict_equivalence_check.m`
@@ -205,6 +253,8 @@ The project already contains useful verification layers:
   - HJ RHS mode performance benchmark and report export.
 - `tests/test_postprocess_export_smoke.m`
   - known-geometry postprocess smoke test (segment count/length/point validity).
+- `tests/test_exact_chain_default_smoke.m`
+  - smoke test for the default exact-chain optimization path.
 
 ## What The Project Currently Optimizes For
 
